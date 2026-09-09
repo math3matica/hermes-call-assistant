@@ -33,7 +33,7 @@ from that bridge.
 ## Run
 
 ```sh
-python -m pip install -e .
+python -m pip install -e '.[test]'
 rex-voice-mode --socket /tmp/rex-voice-mode.sock
 # Existing direct runtime entrypoint:
 rex-call-voice --help
@@ -52,6 +52,67 @@ The existing direct source invocation remains available from the source tree:
 ```sh
 python -m rex_voice_v1.launch [--voice] [--manage-model]
 ```
+
+## Requirements and configuration
+
+- Linux or another POSIX environment with Python 3.10+.
+- Hermes Agent / Nous Research Hermes for plugin loading and, for `--voice`,
+  the host's existing `hermes_cli.voice` STT/TTS implementation.
+- Node.js and the `pi` executable for the realtime runtime.
+- A configured OpenAI-compatible or local model endpoint; model serving and
+  the model supervisor are external and no weights or credentials are shipped.
+- A writable profile-local artifact directory. `OBSIDIAN_VAULT_PATH` is
+  required for a live session and must point to an authorized Vault; it is not
+  bundled or created by this project.
+
+The main settings are environment variables. Defaults are shown here; empty
+or missing required values fail closed rather than starting a partial session.
+
+| Variable | Required | Purpose / default |
+|---|---:|---|
+| `OBSIDIAN_VAULT_PATH` | live session | Authorized Vault root; no default; startup fails if absent |
+| `REX_VOICE_MODE_SOCKET` | plugin status | Private control socket; required when using the plugin adapter |
+| `REX_VOICE_ARTIFACTS` | optional | Session/post-call state; defaults to `~/.hermes/cache/rex-voice-v1` |
+| `REX_VOICE_PI` | optional | `pi` executable; defaults to `~/.local/bin/pi` |
+| `REX_VOICE_SUPERVISOR` | model-managed run | External model supervisor; missing value blocks model management |
+| `REX_VOICE_PREPARED_ROOTS` | optional | Colon-separated authorized read/search roots; default is none |
+| `REX_VOICE_PROVIDER`, `REX_VOICE_MODEL` | optional | Provider/model selection; defaults are implementation-local and should be set explicitly |
+| `REX_VOICE_CONTEXT_WINDOW`, `REX_VOICE_MAX_TOKENS` | optional | Context/output bounds; defaults are `131072` and `4096` |
+| `REX_POST_CALL_AUTOSTART` | optional | Post-call worker toggle; default is enabled, set `false` to disable |
+
+Use synthetic values, for example:
+
+```sh
+export OBSIDIAN_VAULT_PATH="$HOME/example-hermes-vault"
+export REX_VOICE_MODE_SOCKET="/tmp/example-rex-voice.sock"
+export REX_VOICE_ARTIFACTS="$HOME/.hermes/cache/example-rex-voice"
+```
+
+## Architecture
+
+```text
+Hermes Agent / host LLM
+        | bounded preparation and promotion
+        v
+Shared Knowledge (durable, authorized Markdown)
+        | topic-bounded briefing
+        v
+Prepared Briefing (bounded, source-hashed)
+        | retrieval during a call
+        v
+Voice Workspace (ephemeral live state) -> Special Call Voice runtime
+        ^                                      |
+        +------ post-call artifacts/promotion-+
+
+ByteRover / LCM / Hermes session history remain broader host memory;
+they are not blindly injected into the small realtime model.
+```
+
+Host-owned LLM preparation creates bounded briefings. The realtime runtime
+uses those briefings and authorized Shared Knowledge, while the Voice
+Workspace holds ephemeral drafts, assignments, and call state. Post-call
+promotion is explicit and source-bounded; it is not automatic transcript
+dumping.
 
 For Phone Bridge calls, the bridge's call audio worker creates one
 `rex_voice_v1.launch.RexVoiceSession` per call and owns capture/playback,
@@ -115,6 +176,21 @@ Vault is configured.
 python -m pytest -q
 python -m compileall -q src plugin
 ```
+
+These are automated package/plugin checks only. They do not verify a provider,
+STT/TTS, microphone routing, Bluetooth handset audio, a Phone Bridge call, or
+post-call conversational use. See `MANUAL_ACCEPTANCE.md` for those gates.
+
+## Status and limitations
+
+Implemented and automated-test verified: standalone runtime boundary, private
+control protocol, plugin registration/inertness, bounded knowledge retrieval,
+session artifacts, and post-call state handling. Manual or physical validation
+is still required for realtime model startup, speech recognition/synthesis,
+microphone and Bluetooth routing, handset conversation, Phone Bridge
+integration, and Shared Knowledge use in a real call. This is an experimental
+third-party ecosystem project, not an official Nous Research product or
+endorsement.
 
 ## License
 
