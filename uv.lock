@@ -24,7 +24,7 @@ wheels = [
 ]
 
 [[package]]
-name = "hermes-voice-mode"
+name = "hermes-voice-chat"
 version = "0.1.0"
 source = { editable = "." }
 

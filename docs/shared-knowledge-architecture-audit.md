@@ -1,11 +1,11 @@
 # Shared Knowledge Architecture Audit
 
 Date: 2026-09-08
-Scope: Hermes text interaction and the separate `rex_voice_v1` Special Call Voice runtime.
+Scope: Hermes text interaction and the separate `voice chat runtime` Special Call Voice runtime.
 
 ## Executive finding
 
-The installation already has a suitable canonical Markdown Vault and a bounded Special Call Voice capability layer, but the two surfaces do not yet share a first-class publication and preparation contract. Voice can access the configured Vault through `RexVaultAdapter` and separately managed authorized roots, but it does not directly consume Hermes memory-provider results, LCM history, or arbitrary text-session understanding. Voice also has its own JSON session/handoff artifacts and prepared-topic store under its cache root.
+The installation already has a suitable canonical Markdown Vault and a bounded Special Call Voice capability layer, but the two surfaces do not yet share a first-class publication and preparation contract. Voice can access the configured Vault through `VaultAdapter` and separately managed authorized roots, but it does not directly consume Hermes memory-provider results, LCM history, or arbitrary text-session understanding. Voice also has its own JSON session/handoff artifacts and prepared-topic store under its cache root.
 
 The safe direction is to keep the Vault authoritative, add an explicit shared-knowledge/prepared-briefing layer inside the Vault, and leave raw session history, LCM, ByteRover, call artifacts, and Voice Workspace state out of direct small-model injection.
 
@@ -17,9 +17,9 @@ The safe direction is to keep the Vault authoritative, add an explicit shared-kn
 | LCM | Configured as `context.engine: lcm`; plugin-local LCM database | F | No | Context compression/retrieval system. Summaries are recall cues, not canonical user knowledge. |
 | Configured memory provider | `memory.provider: byterover`; Hermes memory provider lifecycle | F | No | Broader system memory. Must not be dumped into the small call model. |
 | ByteRover | `.brv/` project context tree plus ByteRover service/provider | F/G | No | Durable broader project memory and retrieval; useful to larger-model preparation, not direct voice context. |
-| Rex Vault / Obsidian-style notes | Configured `OBSIDIAN_VAULT_PATH`, known installation at `~/Documents/Rex Vault` | H/A | Yes, bounded | Markdown is the canonical user-visible document layer. Rex Vault plugin enforces in-vault paths, backups, active-document state, and verified resource identity. |
+| configured document store / Obsidian-style notes | Configured `OBSIDIAN_VAULT_PATH`, known installation at `~/Documents/configured document store` | H/A | Yes, bounded | Markdown is the canonical user-visible document layer. configured document store plugin enforces in-vault paths, backups, active-document state, and verified resource identity. |
 | Voice Workspace | `<Vault>/Voice Workspace/{drafts,working-notes,completed-notes,inbox}` | E | Yes, separately | Voice-specific working area. Current search intentionally excludes it from generic note search. It must not become canonical knowledge. |
-| `rex_voice_v1.note_search` | Searches authorized Markdown roots, bounded to 4 results/10,000 chars | A/H retrieval | Yes | Token/paragraph search; excludes `.rex-vault-backups` and `Voice Workspace`. Does not search raw transcripts. |
+| `voice chat runtime.note_search` | Searches authorized Markdown roots, bounded to 4 results/10,000 chars | A/H retrieval | Yes | Token/paragraph search; excludes `.rex-vault-backups` and `Voice Workspace`. Does not search raw transcripts. |
 | Prepared topic packets | `~/.hermes/cache/rex-voice-v1/prepared-topics/*.json` via `VoiceSessionStore` | B/G | Yes | Existing `rex-prepared-topic-v1`; topic aliases/content/source refs/version. Current store is voice-cache-owned and JSON-only, lacks source freshness and human-readable packet files. |
 | Post-call prepared context | Per-session JSON in VoiceSessionStore and post-call job artifacts | B/C/E | Yes, next-session handoff | Existing `rex-prepared-context-v1`; includes findings, decisions, questions, assignments, handles, and follow-ups. It is a bounded handoff artifact, not shared canonical knowledge. |
 | Assignments/jobs | Voice cache `assignments/`, post-call `jobs/`, Hermes canonical session when available | C | Yes for continuity | Existing explicit assignment capture and post-call queue. Must remain separate from knowledge and briefings. |
@@ -34,8 +34,8 @@ The safe direction is to keep the Vault authoritative, add an explicit shared-kn
 ## Current source authorization boundaries
 
 - `OBSIDIAN_VAULT_PATH` is required to start Special Call Voice.
-- `RexVaultAdapter` delegates durable document mutations to the existing Rex Vault provider.
-- `RexVoiceWorkspace` authorizes the Vault-local `Voice Workspace` plus explicitly granted read/search roots from `REX_VOICE_PREPARED_ROOTS`.
+- `VaultAdapter` delegates durable document mutations to the existing configured document store provider.
+- `RexVoiceWorkspace` authorizes the Vault-local `Voice Workspace` plus explicitly granted read/search roots from `HERMES_VOICE_CHAT_PREPARED_ROOTS`.
 - Additional roots are read/search-only; writes remain workspace-scoped.
 - `note_search` rejects paths outside the supplied root and excludes backup files and Voice Workspace from generic search.
 - The voice process does not recursively search the filesystem, Hermes home, ByteRover, LCM, or raw session databases.

@@ -1,10 +1,10 @@
-# hermes-voice-mode
+# hermes-voice-chat
 
-Standalone package and Hermes plugin for the separate, call-oriented Rex Voice runtime.
+Standalone package and Hermes plugin for the separate, call-oriented Voice Chat runtime.
 
 ## Scope
 
-This package owns the specialized Rex runtime, its Pi capability bridge, the
+This package owns the specialized voice chat runtime, its Pi capability bridge, the
 private JSON-lines Unix-domain control plane, and the Hermes plugin adapter. It
 supports status plus bounded session lifecycle (`start_session`,
 `complete_session`, `abort_session`). The endpoint is created with mode `0600`,
@@ -17,8 +17,8 @@ Hermes has a normal built-in Voice Mode, including its `/voice` command and
 interactive recorder/UI lifecycle. That upstream feature is not replaced,
 overridden, or renamed by this project.
 
-Rex Voice is a second, specialized voice runtime for telephone/call operation.
-It owns the call-oriented conversational loop, Rex-specific prompt and
+Voice Chat is a second, specialized voice runtime for telephone/call operation.
+It owns the call-oriented conversational loop, specialized prompt and
 capability behavior, the configured specialized model/runtime, and its
 session/post-call handoff. It may reuse Hermes's public voice facilities for
 microphone/STT/TTS when launched with `--voice`, but that does not make it the
@@ -34,17 +34,17 @@ from that bridge.
 
 ```sh
 python -m pip install -e '.[test]'
-rex-voice-mode --socket /tmp/rex-voice-mode.sock
+hermes-voice-chat --socket /tmp/hermes-voice-chat.sock
 # Existing direct runtime entrypoint:
-rex-call-voice --help
+hermes-call-voice --help
 # Hermes plugin CLI entrypoint after plugin installation:
-hermes call-voice --help
+hermes voice-chat --help
 ```
 
-Set `REX_VOICE_MODE_SOCKET` for safe status/session control, then install the
+Set `HERMES_VOICE_CHAT_SOCKET` for safe status/session control, then install the
 directory `plugin/` using Hermes's normal project/user plugin mechanism. The
-adapter uses public registration APIs only. `hermes call-voice` is a deliberate
-separate command and invokes the packaged `rex_voice_v1.launch` entrypoint; it
+adapter uses public registration APIs only. `hermes voice-chat` is a deliberate
+separate command and invokes the packaged voice runtime entrypoint; it
 does not claim or register `/voice`.
 
 The existing direct source invocation remains available from the source tree:
@@ -71,21 +71,22 @@ or missing required values fail closed rather than starting a partial session.
 | Variable | Required | Purpose / default |
 |---|---:|---|
 | `OBSIDIAN_VAULT_PATH` | live session | Authorized Vault root; no default; startup fails if absent |
-| `REX_VOICE_MODE_SOCKET` | plugin status | Private control socket; required when using the plugin adapter |
-| `REX_VOICE_ARTIFACTS` | optional | Session/post-call state; defaults to `~/.hermes/cache/rex-voice-v1` |
-| `REX_VOICE_PI` | optional | `pi` executable; defaults to `~/.local/bin/pi` |
-| `REX_VOICE_SUPERVISOR` | model-managed run | External model supervisor; missing value blocks model management |
-| `REX_VOICE_PREPARED_ROOTS` | optional | Colon-separated authorized read/search roots; default is none |
-| `REX_VOICE_PROVIDER`, `REX_VOICE_MODEL` | optional | Provider/model selection; defaults are implementation-local and should be set explicitly |
-| `REX_VOICE_CONTEXT_WINDOW`, `REX_VOICE_MAX_TOKENS` | optional | Context/output bounds; defaults are `131072` and `4096` |
-| `REX_POST_CALL_AUTOSTART` | optional | Post-call worker toggle; default is enabled, set `false` to disable |
+| `HERMES_VOICE_CHAT_SOCKET` | plugin status | Private control socket; required when using the plugin adapter |
+| `HERMES_VOICE_CHAT_ARTIFACTS` | optional | Session/post-call state; defaults to `~/.hermes/cache/hermes-voice-chat` |
+| `HERMES_VOICE_CHAT_PI` | optional | `pi` executable; defaults to `~/.local/bin/pi` |
+| `HERMES_VOICE_CHAT_SUPERVISOR` | model-managed run | External model supervisor; missing value blocks model management |
+| `HERMES_VOICE_CHAT_PREPARED_ROOTS` | optional | Colon-separated authorized read/search roots; default is none |
+| `HERMES_VOICE_CHAT_DOCUMENT_PLUGIN` | optional | Hermes document-store plugin path; defaults to `~/.hermes/plugins/document-store/__init__.py`, with legacy Rex Vault fallback |
+| `HERMES_VOICE_CHAT_PROVIDER`, `HERMES_VOICE_CHAT_MODEL` | optional | Provider/model selection; defaults are implementation-local and should be set explicitly |
+| `HERMES_VOICE_CHAT_CONTEXT_WINDOW`, `HERMES_VOICE_CHAT_MAX_TOKENS` | optional | Context/output bounds; defaults are `131072` and `4096` |
+| `HERMES_VOICE_CHAT_POST_CALL_AUTOSTART` | optional | Post-call worker toggle; default is enabled, set `false` to disable; legacy `REX_POST_CALL_AUTOSTART` is also accepted |
 
 Use synthetic values, for example:
 
 ```sh
 export OBSIDIAN_VAULT_PATH="$HOME/example-hermes-vault"
-export REX_VOICE_MODE_SOCKET="/tmp/example-rex-voice.sock"
-export REX_VOICE_ARTIFACTS="$HOME/.hermes/cache/example-rex-voice"
+export HERMES_VOICE_CHAT_SOCKET="/tmp/example-hermes-voice-chat.sock"
+export HERMES_VOICE_CHAT_ARTIFACTS="$HOME/.hermes/cache/example-hermes-voice-chat"
 ```
 
 ## Architecture
@@ -116,15 +117,15 @@ dumping.
 
 For Phone Bridge calls, the bridge's call audio worker creates one
 `rex_voice_v1.launch.RexVoiceSession` per call and owns capture/playback,
-authorization, hangup, and terminal cleanup. Rex Voice owns the specialized
+authorization, hangup, and terminal cleanup. Voice Chat owns the specialized
 conversation, capability bridge, session artifacts, and post-call handoff.
 The model supervisor remains an external configured dependency; no model or
 credentials are shipped.
 
 ### What is and is not implemented here
 
-`rex_voice_v1` is a real standalone Rex conversational runtime: it owns the
-Pi RPC turn loop, Rex capability bridge, session artifacts, and post-call
+`rex_voice_v1` is a real standalone voice conversational runtime: it owns the
+Pi RPC turn loop, voice capability bridge, session artifacts, and post-call
 queue/recovery handoff. It is not merely packaging. However, `--voice` reuses
 Hermes's existing `hermes_cli.voice` capture/STT/TTS functions; this project
 does not provide a parallel audio or speech stack. Phone dialing,
@@ -133,8 +134,8 @@ Phone Bridge/worker responsibilities. The configured model supervisor is also
 external. Therefore a successful install or dry runtime probe is not evidence
 of a physical call or end-to-end audio conversation.
 
-The adapter is inert until explicitly invoked: it registers only the safe Rex
-status tool, `/rex-voice-mode`, and `hermes call-voice`. It never registers or
+The adapter is inert until explicitly invoked: it registers only the safe voice
+status tool, `/voice-chat`, and `hermes voice-chat`. It never registers or
 mutates Hermes `/voice`, starts a process during registration, or performs
 telephony implicitly. This invariant is tested for both installed/inactive
 behavior and the no-plugin case (when the adapter is simply not loaded).

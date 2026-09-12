@@ -59,31 +59,36 @@ def cleanup_stale_socket(path: Path) -> bool:
 def cleanup_stale_sockets(directory: Path | None = None, store_root: Path | None = None, session_db: Any | None = None) -> list[Path]:
     """Remove abandoned endpoints and reconcile only their active sessions."""
     root = Path(directory or tempfile.gettempdir())
-    artifacts = Path(store_root or os.getenv("REX_VOICE_ARTIFACTS", str(Path.home() / ".hermes/cache/rex-voice-v1"))).expanduser()
+    artifacts = Path(store_root or _env("HERMES_VOICE_CHAT_ARTIFACTS", "REX_VOICE_ARTIFACTS", str(Path.home() / ".hermes/cache/hermes-voice-chat"))).expanduser()
     removed: list[Path] = []
-    for path in root.glob("rex-v1-rex-voice-*.sock"):
-        if cleanup_stale_socket(path):
-            removed.append(path)
-            session_id = path.name.removeprefix("rex-v1-").removesuffix(".sock")
-            VoiceSessionStore(artifacts, session_db=session_db).reconcile_abandoned(session_id)
+    for pattern in ("hermes-voice-chat-*.sock", "rex-v1-rex-voice-*.sock"):
+        for path in root.glob(pattern):
+            if cleanup_stale_socket(path):
+                removed.append(path)
+                session_id = path.name.removesuffix(".sock").removeprefix("rex-v1-").removeprefix("hermes-voice-chat-")
+                VoiceSessionStore(artifacts, session_db=session_db).reconcile_abandoned(session_id)
     return removed
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
-PI = Path(os.getenv("REX_VOICE_PI", str(Path.home() / ".local/bin/pi")))
-SUPERVISOR = Path(os.getenv("REX_VOICE_SUPERVISOR", "")) if os.getenv("REX_VOICE_SUPERVISOR") else None
-SYSTEM_PROMPT = """You are Rex Voice, the document-aware voice frontend for Rex. Be concise and natural, but use the capabilities below when the request requires real work.
+def _env(name: str, legacy: str, default: str = "") -> str:
+    return os.getenv(name, os.getenv(legacy, default))
 
-DOCUMENT CAPABILITY: You can create, read, revise, rename, append to, and precisely edit documents. Never claim that you lack document capability merely because the generic write_file tool is absent. This runtime intentionally does not expose generic filesystem tools. Document work is performed through the Rex Vault capabilities: use resource_manage to create, open, rename, or inspect durable notes; use resource_read to read the active note; use resource_mutate only for validated edits to an existing active note.
+
+PI = Path(_env("HERMES_VOICE_CHAT_PI", "REX_VOICE_PI", str(Path.home() / ".local/bin/pi")))
+SUPERVISOR = Path(_env("HERMES_VOICE_CHAT_SUPERVISOR", "REX_VOICE_SUPERVISOR")) if _env("HERMES_VOICE_CHAT_SUPERVISOR", "REX_VOICE_SUPERVISOR") else None
+SYSTEM_PROMPT = """You are Voice Chat, a document-aware voice conversation frontend. Be concise and natural, but use the capabilities below when the request requires real work.
+
+DOCUMENT CAPABILITY: You can create, read, revise, rename, append to, and precisely edit documents. Never claim that you lack document capability merely because the generic write_file tool is absent. This runtime intentionally does not expose generic filesystem tools. Document work is performed through the configured document store capabilities: use resource_manage to create, open, rename, or inspect durable notes; use resource_read to read the active note; use resource_mutate only for validated edits to an existing active note.
 
 DRAFTING RULE: Use draft_manage for composition and revision. EVERY draft_manage call must include the operation field. For creation, call exactly {operation: "create", content: "..."}; never send content alone. CREATE ONLY OPENS A DRAFT: it never saves, promotes, or implies approval. While an unpromoted draft is active, every request to read the current draft, read it back, ask what the draft says, or read the document before saving MUST call exactly {operation: "read", draft_id: "EXACT_ACTIVE_DRAFT_ID"}. Do not answer from context, and do not use resource_manage or resource_read for an unpromoted draft. After create, revise zero or more times, read/inspect as needed, and wait for explicit approval in a later current user turn. Only then may you call {operation: "promote", draft_id: "EXACT_RETURNED_ID", target: "document name"}; target must be non-empty. A revision invalidates prior approval. Do not pretend a draft was saved or promoted without a successful capability result followed by resource_manage operation=open and resource_read verification.
 
-CONTINUITY RULE: Use the prepared working context supplied with each turn and the structured session state returned by capabilities. It contains the active resource, active drafts, last read region, assignments, retrieval handles, unresolved questions, and continuation points. Maintain continuity across turns by referring to that state, not by inventing filenames, draft IDs, or previous operations. The Rex Vault is the durable document store; drafts and session state are the working memory for this conversation.
+CONTINUITY RULE: Use the prepared working context supplied with each turn and the structured session state returned by capabilities. It contains the active resource, active drafts, last read region, assignments, retrieval handles, unresolved questions, and continuation points. Maintain continuity across turns by referring to that state, not by inventing filenames, draft IDs, or previous operations. The configured document store is the durable document store; drafts and session state are the working memory for this conversation.
 
 CAPABILITY RULE: The available capabilities are retrieval, resource_manage, resource_read, resource_mutate, draft_manage, and assignment_capture. Use retrieval only when quick notes and the active prepared topic do not contain the requested detail. MEMORY RETRIEVAL RULE: If quick notes or the prepared topic contain the answer, answer directly; if authoritative stored notes are needed, call retrieval; questions such as "what did we decide" and "what do my notes say" use retrieval when the detail is not prepared; use resource_manage/resource_read only when the user names a saved document and asks for its exact or full text; never claim to search, check, look something up, or consult notes unless retrieval actually executes in this turn; if retrieval returns no useful result, say the stored notes did not provide the detail; do not invent missing stored information. For note mode, it searches a few bounded chunks from authoritative notes, preferring active-topic source references and widening once to the approved full-note corpus only when needed. It returns source paths, sections, and handles; do not ask for or invent source paths. Do not use current_web for ordinary memory questions. Use resource_manage {operation: "open", target: "SAVED_RESOURCE"} followed by resource_read when the user asks for an exact or full persisted note. Use draft_manage {operation: "read", draft_id: "EXACT_ACTIVE_DRAFT_ID"} for an active unpromoted draft. Use assignment_capture for explicit follow-up work. Capability results are authoritative; assistant prose alone is not proof that an operation happened. In acceptance mode, an explicit draft-read request is unsatisfied unless a successful draft_manage read result was returned.
 
 RESOURCE RULE: resource_read never opens or switches the active resource. Before reading or explaining any named saved note that is not already active, call resource_manage operation=open with that note as target, specifically {operation: "open", target: "SAVED_RESOURCE"}, then call resource_read. Do not call resource_manage with an active draft ID; do not call resource_read for an unpromoted draft.
 
-When the user asks to create or save a document, do not refuse. If the request is explicitly an assignment or asks Rex to do work after the call, assignment_capture is authoritative and must be the first capability call, even when the requested output is a document. Otherwise choose the draft_manage → approval → promote workflow, then use resource_manage/resource_read to verify the durable Rex Vault note. When the user explicitly asks to hang up, end the call, or stop the phone conversation, call phone_hangup and do not continue the conversation.
+When the user asks to create or save a document, do not refuse. If the request is explicitly an assignment or asks the voice agent to do work after the call, assignment_capture is authoritative and must be the first capability call, even when the requested output is a document. Otherwise choose the draft_manage → approval → promote workflow, then use resource_manage/resource_read to verify the durable configured document store note. When the user explicitly asks to hang up, end the call, or stop the phone conversation, call phone_hangup and do not continue the conversation.
 
 ASSIGNMENT ACKNOWLEDGEMENT RULE: After assignment_capture returns successfully, acknowledge that the assignment was captured or queued. Do not promise that you will notify the user when it is complete unless the authoritative result explicitly has notify_on_completion=true and a configured notification channel. If notification is disabled or unspecified, say nothing about a future notification."""
 
@@ -446,11 +451,11 @@ class PiRpc:
 
 
 class RexVoiceSession:
-    """Embeddable Rex Voice V1 runtime for Hermes' existing voice loop."""
+    """Embeddable Voice Chat runtime for Hermes' existing voice loop."""
 
     def __init__(self, artifact_root: Path | None = None, topic: str = "", acceptance_gate: Any | None = None) -> None:
-        self.session_id = f"rex-voice-{uuid.uuid4().hex[:12]}"
-        root = artifact_root or Path(os.getenv("REX_VOICE_ARTIFACTS", str(Path.home() / ".hermes/cache/rex-voice-v1")))
+        self.session_id = f"hermes-voice-chat-{uuid.uuid4().hex[:12]}"
+        root = artifact_root or Path(_env("HERMES_VOICE_CHAT_ARTIFACTS", "REX_VOICE_ARTIFACTS", str(Path.home() / ".hermes/cache/hermes-voice-chat")))
         self.session_root = root.expanduser() / self.session_id
         self.session_root.mkdir(parents=True, exist_ok=True)
         self.socket_path = socket_path_for(self.session_root, self.session_id)
@@ -471,14 +476,14 @@ class RexVoiceSession:
 
     def start(self, observer: Callable[[str], None] | None = None) -> None:
         if not os.environ.get("OBSIDIAN_VAULT_PATH"):
-            raise RuntimeError("OBSIDIAN_VAULT_PATH is required for Rex Voice V1")
+            raise RuntimeError("OBSIDIAN_VAULT_PATH is required for Voice Chat")
         _models_config(self.pi_dir / "models.json", self.profile)
         os.environ["PI_CODING_AGENT_DIR"] = str(self.pi_dir)
         os.environ["REX_VOICE_BRIDGE_SOCKET"] = str(self.socket_path)
         os.environ["REX_VOICE_SESSION_ID"] = self.session_id
         vault_root = Path(os.environ["OBSIDIAN_VAULT_PATH"])
         workspace = RexVoiceWorkspace(vault_root)
-        prepared_roots = os.getenv("REX_VOICE_PREPARED_ROOTS", "")
+        prepared_roots = os.getenv("HERMES_VOICE_CHAT_PREPARED_ROOTS", os.getenv("REX_VOICE_PREPARED_ROOTS", ""))
         if prepared_roots:
             for item in json.loads(prepared_roots):
                 workspace.grant_root(str(item["id"]), Path(str(item["path"])), modes=("read", "search"))
@@ -508,12 +513,12 @@ class RexVoiceSession:
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log_path.open("w"), text=True, bufsize=1, env=os.environ.copy(), start_new_session=True)
         self._observer = observer
         self.rpc = PiRpc(self.process, log_path, self.session_root / "pi-events.jsonl", observer=observer)
-        print(f"[Rex Voice V1] Pi runtime active session={self.session_id}", flush=True)
-        print(f"[Rex Voice V1] artifacts={self.session_root}", flush=True)
+        print(f"[Voice Chat] Pi runtime active session={self.session_id}", flush=True)
+        print(f"[Voice Chat] artifacts={self.session_root}", flush=True)
 
     def prompt(self, message: str) -> str:
         if self.rpc is None or self.backend is None:
-            raise RuntimeError("Rex Voice V1 runtime is not started")
+            raise RuntimeError("Voice Chat runtime is not started")
         if self.process is not None and self.process.poll() not in (None, 0):
             raise RuntimeError(f"Pi exited before prompt with status {self.process.returncode}")
         self.backend.set_acceptance_turn(transcript=message, model_facing_request=message)
@@ -674,7 +679,7 @@ class RexVoiceSession:
                 else:
                     self.backend.complete_session(self.session_id, transcript=None, final_topic=self.topic)
             except Exception as exc:
-                print(f"[Rex Voice V1] session finalization failed: {exc}", file=sys.stderr)
+                print(f"[Voice Chat] session finalization failed: {exc}", file=sys.stderr)
             try:
                 job = enqueue_closed_session(self.backend.store, self.session_id, artifact_root=self.backend.store.root)
                 self._post_call_job = job
@@ -698,11 +703,11 @@ class RexVoiceSession:
 
 def _model_profile() -> dict[str, Any]:
     return {
-        "provider": os.getenv("REX_VOICE_PROVIDER", "rex-gemma"),
+        "provider": os.getenv("HERMES_VOICE_CHAT_PROVIDER", os.getenv("REX_VOICE_PROVIDER", "local")),
         "base_url": os.getenv("REX_VOICE_MODEL_BASE_URL", "http://127.0.0.1:8082/v1"),
         "model": os.getenv("REX_VOICE_MODEL_ID", "/models/gemma-4-E2B-it-Q8_0.gguf"),
-        "context_window": int(os.getenv("REX_VOICE_CONTEXT_WINDOW", "131072")),
-        "max_tokens": int(os.getenv("REX_VOICE_MAX_TOKENS", "4096")),
+        "context_window": int(os.getenv("HERMES_VOICE_CHAT_CONTEXT_WINDOW", os.getenv("REX_VOICE_CONTEXT_WINDOW", "131072"))),
+        "max_tokens": int(os.getenv("HERMES_VOICE_CHAT_MAX_TOKENS", os.getenv("REX_VOICE_MAX_TOKENS", "4096"))),
         # Gemma may spend substantial output budget on reasoning before a
         # native call. The larger bounded response budget prevents truncation;
         # it does not add retries or weaken native-call validation.
@@ -717,20 +722,20 @@ def _models_config(path: Path, profile: dict[str, Any] | None = None) -> None:
         "api": "openai-completions",
         "apiKey": "local",
         "compat": {"supportsDeveloperRole": False, "supportsReasoningEffort": False},
-        "models": [{"id": profile["model"], "name": "Rex Voice V1 local qualification profile", "reasoning": profile["reasoning"], "contextWindow": profile["context_window"], "maxTokens": profile["max_tokens"]}],
+        "models": [{"id": profile["model"], "name": "Voice Chat local runtime profile", "reasoning": profile["reasoning"], "contextWindow": profile["context_window"], "maxTokens": profile["max_tokens"]}],
     }}}, indent=2), encoding="utf-8")
 
 
 def _supervisor(action: str) -> None:
     if SUPERVISOR is None:
-        raise RuntimeError("REX_VOICE_SUPERVISOR is required for standalone model-managed runs")
+        raise RuntimeError("HERMES_VOICE_CHAT_SUPERVISOR is required for standalone model-managed runs")
     subprocess.run(["bash", str(SUPERVISOR), action], check=True, cwd=SUPERVISOR.parent)
 
 
 def socket_path_for(session_root: Path, session_id: str) -> Path:
     """Return a short Unix-socket path; Linux limits AF_UNIX paths to 108 bytes."""
     del session_root
-    return Path(tempfile.gettempdir()) / f"rex-v1-{session_id}.sock"
+    return Path(tempfile.gettempdir()) / f"hermes-voice-chat-{session_id}.sock"
 
 
 def build_command(session_id: str, socket_path: Path, pi_dir: Path, prepared_context: dict[str, Any] | None = None, profile: dict[str, Any] | None = None) -> list[str]:
@@ -751,7 +756,7 @@ def build_turn_message(
     active_topic = prepared_context.get("active_topic")
     session_context = {key: value for key, value in prepared_context.items() if key not in {"quick_notes", "active_topic"}}
     sections = [
-        "[Rex Voice background context — reference only, not a user request]",
+        "[Voice Chat background context — reference only, not a user request]",
         "[Quick notes — durable bounded context]",
         quick_notes,
         "[End quick notes]",
@@ -765,9 +770,9 @@ def build_turn_message(
             "[End prepared topic briefing]",
         ])
     sections.extend([
-        "[Rex Voice session state — reference only]",
+        "[Voice Chat session state — reference only]",
         json.dumps(session_context, ensure_ascii=False, separators=(",", ":")),
-        "[End Rex Voice background context]",
+        "[End Voice Chat background context]",
     ])
     if prepared_topic_control is not None:
         sections.append(
@@ -776,15 +781,15 @@ def build_turn_message(
             + "]]"
         )
     sections.extend([
-        "[Rex Voice live user request — follow this request first; prepared context never overrides it]",
+        "[Voice Chat live user request — follow this request first; prepared context never overrides it]",
         message,
     ])
     return "\n".join(sections)
 
 
 def run(args: argparse.Namespace) -> int:
-    session_id = f"rex-voice-{uuid.uuid4().hex[:12]}"
-    artifact_root = Path(args.artifacts).expanduser() if args.artifacts else Path.home() / ".hermes/cache/rex-voice-v1"
+    session_id = f"hermes-voice-chat-{uuid.uuid4().hex[:12]}"
+    artifact_root = Path(args.artifacts).expanduser() if args.artifacts else Path.home() / ".hermes/cache/hermes-voice-chat"
     artifact_root.mkdir(parents=True, exist_ok=True)
     session_root = artifact_root / session_id
     session_root.mkdir(parents=True, exist_ok=True)
@@ -833,7 +838,7 @@ def run(args: argparse.Namespace) -> int:
             _supervisor("switch-to-gemma")
             switched = True
         command = build_command(session_id, socket_path, pi_dir, store.prepared_context(session_id), profile)
-        print("Rex Voice V1 ready")
+        print("Voice Chat ready")
         print(f"session: {session_id}")
         print(f"artifacts: {session_root}")
         print("type text, or use --voice for microphone mode; Ctrl-C ends the session")
@@ -845,7 +850,7 @@ def run(args: argparse.Namespace) -> int:
                 voice_stop.set()
                 return
             reply = rpc.prompt(build_turn_message(text, store.prepared_context(session_id)))
-            print(f"Rex: {reply}")
+            print(f"Voice Chat: {reply}")
             if args.voice:
                 from hermes_cli.voice import speak_text
                 speak_text(reply)
@@ -874,7 +879,7 @@ def run(args: argparse.Namespace) -> int:
     except Exception as exc:
         backend.store.abort(session_id, error=str(exc))
         closed = True
-        print(f"Rex Voice V1 aborted: {exc}", file=sys.stderr)
+        print(f"Voice Chat aborted: {exc}", file=sys.stderr)
         result_code = 1
     finally:
         try:
@@ -910,7 +915,7 @@ def run(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Opt-in Rex Voice V1")
+    parser = argparse.ArgumentParser(description="Opt-in Voice Chat")
     parser.add_argument("--voice", action="store_true", help="use existing Hermes microphone/STT/TTS stack")
     parser.add_argument("--manage-model", action="store_true", help="switch Gemma/Qwen through the existing supervisor")
     parser.add_argument("--topic", default="")

@@ -12,21 +12,28 @@ from .note_search import MAX_RESULTS, search_note_chunks
 
 
 class RexVaultAdapter:
-    """Adapt the existing Rex Vault plugin without exposing its raw tools to Pi."""
+    """Adapt a configured Hermes document-store plugin without exposing raw tools to Pi."""
 
-    def __init__(self, vault_root: Path, plugin_path: Path = Path.home() / ".hermes/plugins/rex-vault/__init__.py"):
+    def __init__(self, vault_root: Path, plugin_path: Path | None = None):
         self.vault_root = Path(vault_root).expanduser().resolve()
         if not self.vault_root.is_dir():
             raise CapabilityError(f"vault does not exist: {self.vault_root}")
+        if plugin_path is None:
+            configured = os.environ.get("HERMES_VOICE_CHAT_DOCUMENT_PLUGIN", "").strip()
+            plugin_path = Path(configured).expanduser() if configured else Path.home() / ".hermes/plugins/document-store/__init__.py"
+            if not plugin_path.exists():
+                legacy_path = Path.home() / ".hermes/plugins/rex-vault/__init__.py"
+                if legacy_path.exists():
+                    plugin_path = legacy_path
         os.environ["OBSIDIAN_VAULT_PATH"] = str(self.vault_root)
         # The plugin is a Hermes provider, so import it in the Hermes source
         # environment rather than copying its storage/backup implementation.
         hermes_root = str(Path.home() / ".hermes/hermes-agent")
         if hermes_root not in sys.path:
             sys.path.insert(0, hermes_root)
-        spec = importlib.util.spec_from_file_location("rex_vault_v1_provider", plugin_path)
+        spec = importlib.util.spec_from_file_location("hermes_voice_chat_document_provider", plugin_path)
         if not spec or not spec.loader:
-            raise CapabilityError(f"cannot load Rex Vault provider: {plugin_path}")
+            raise CapabilityError(f"cannot load document-store provider: {plugin_path}")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         self.provider = module
@@ -83,10 +90,10 @@ class RexVaultAdapter:
     def _resource(self, result: dict[str, Any]) -> dict[str, Any]:
         envelope = result.get("context_compiler")
         if not isinstance(envelope, dict) or envelope.get("status") != "success":
-            raise CapabilityError("Rex Vault returned no validated resource identity")
+            raise CapabilityError("document store returned no validated resource identity")
         resource = envelope.get("resource")
         if not isinstance(resource, dict) or not resource.get("canonical_id"):
-            raise CapabilityError("Rex Vault returned an invalid resource identity")
+            raise CapabilityError("document store returned an invalid resource identity")
         canonical = Path(str(resource["canonical_id"])).resolve()
         try:
             display_name = str(canonical.relative_to(self.vault_root))

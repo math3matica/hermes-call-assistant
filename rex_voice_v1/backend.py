@@ -139,7 +139,7 @@ class CapabilityBackend:
         self.store = store
         self.web_retriever = web_retriever or (lambda query, limit: [])
         self.workspace = workspace
-        # This is deliberately opt-in. Ordinary Rex Voice sessions have no
+        # This is deliberately opt-in. ordinary voice chat sessions have no
         # gate and therefore retain their normal capability behavior.
         self.acceptance_gate = acceptance_gate
         self.telemetry = telemetry

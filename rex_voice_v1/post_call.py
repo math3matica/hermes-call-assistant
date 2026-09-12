@@ -933,7 +933,7 @@ def default_model_processor(queue: PostCallQueue) -> PostCallProcessor:
     def interpret(packet: dict[str, Any]) -> dict[str, Any]:
         prompt = (
             "/no_think\n"
-            "Extract durable learning from this closed Rex Voice call. This is one bounded extraction task, not "
+            "Extract durable learning from this closed voice chat call. This is one bounded extraction task, not "
             "post-call planning or work execution. Do not execute assignments, browse, edit files, research, "
             "inspect the repository, or propose implementation work. Return exactly one JSON object and then stop. "
             "Use exactly these top-level keys, each with an array value: explicit_preferences, explicit_decisions, "

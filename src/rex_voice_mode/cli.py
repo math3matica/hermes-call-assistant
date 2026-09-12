@@ -8,7 +8,7 @@ from .boundary import BoundaryServer
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the safe Rex Voice control-plane boundary")
+    parser = argparse.ArgumentParser(description="Run the safe Voice Chat control-plane boundary")
     parser.add_argument("--socket", type=Path, required=True)
     args = parser.parse_args()
     server = BoundaryServer(args.socket)

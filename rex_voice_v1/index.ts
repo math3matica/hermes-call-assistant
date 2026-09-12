@@ -230,21 +230,21 @@ export default function rexVoiceExtension(pi: ExtensionAPI) {
   pi.registerTool({
     name: "resource_read",
     label: "Read active resource",
-    description: "Read the currently active Rex Vault document or a bounded region. This never opens or switches documents; use resource_manage operation=open first for a different note. The result is authoritative persisted content.",
+    description: "Read the currently active document or a bounded region. This never opens or switches documents; use resource_manage operation=open first for a different note. The result is authoritative persisted content.",
     parameters: Type.Object({ target: Type.Optional(Type.String()), region: Type.Optional(Type.Record(Type.String(), Type.Unknown())) }),
     async execute(_id, params, _signal, _onUpdate, ctx) { return { content: [{ type: "text", text: JSON.stringify(await executeCapability(ctx, "resource_read", params)) }] }; },
   });
   pi.registerTool({
     name: "resource_mutate",
     label: "Modify active resource",
-    description: "Edit the active Rex Vault document only. Use operation=append or operation=replace with a validated paragraph or exact-text region and expected_version when available. This is not for creating drafts or arbitrary files.",
+    description: "Edit the active document only. Use operation=append or operation=replace with a validated paragraph or exact-text region and expected_version when available. This is not for creating drafts or arbitrary files.",
     parameters: Type.Object({ operation: Type.Union([Type.Literal("append"), Type.Literal("replace")]), content: Type.String(), target: Type.Optional(Type.String()), region: Type.Optional(Type.Record(Type.String(), Type.Unknown())), expected_version: Type.Optional(Type.String()) }),
     async execute(_id, params, _signal, _onUpdate, ctx) { return { content: [{ type: "text", text: JSON.stringify(await executeCapability(ctx, "resource_mutate", params)) }] }; },
   });
   pi.registerTool({
     name: "resource_manage",
     label: "Manage resource",
-    description: "Manage durable, promoted Rex Vault documents only. Every call requires operation. For open, use exactly {operation: \"open\", target: \"SAVED_RESOURCE\"}; target must be a saved resource name/path. Never pass an active unpromoted draft id here, and never use this tool to read a draft. Promote drafts with draft_manage first.",
+    description: "Manage durable, promoted documents only. Every call requires operation. For open, use exactly {operation: \"open\", target: \"SAVED_RESOURCE\"}; target must be a saved resource name/path. Never pass an active unpromoted draft id here, and never use this tool to read a draft. Promote drafts with draft_manage first.",
     parameters: Type.Union([
       Type.Object({ operation: Type.Literal("active") }),
       Type.Object({ operation: Type.Literal("create"), target: Type.String(), content: Type.String() }),

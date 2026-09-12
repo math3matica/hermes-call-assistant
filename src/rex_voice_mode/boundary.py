@@ -1,4 +1,4 @@
-"""Safe external boundary for Rex Voice mode.
+"""Safe external boundary for Voice Chat mode.
 
 This package owns only a small, private control-plane service. It deliberately
 has no dial, hangup, recorder, playback, STT, TTS, or model-launch code.
@@ -52,7 +52,7 @@ class BoundaryState:
         raise AssertionError("unreachable")
 
     def status(self) -> dict[str, Any]:
-        return {"schema": "rex-voice-mode-boundary-v1", "state": self.state, "audio": "not_started", "calls": "not_started", "core_shim": "required", **({"session_id": self.session_id} if self.session_id else {})}
+        return {"schema": "hermes-voice-chat-boundary-v1", "state": self.state, "audio": "not_started", "calls": "not_started", "core_shim": "required", **({"session_id": self.session_id} if self.session_id else {})}
 
 
 class BoundaryServer:

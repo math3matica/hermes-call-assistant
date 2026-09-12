@@ -16,7 +16,7 @@ Hermes built-in /voice is independent.
 ```
 
 Shared Knowledge is user-authorized, source-bounded Markdown under the configured
-Rex Vault. Text Hermes writes it only through an explicit publication operation.
+configured document store. Text Hermes writes it only through an explicit publication operation.
 Prepared Briefings are a bounded synthesis for the smaller call model, created
 through host-owned `ctx.llm`, never by the realtime model itself.
 
@@ -40,7 +40,7 @@ files, session JSON, assignments, transcripts, and post-call artifacts are not
 deleted or rewritten. Existing cache packets remain readable through the legacy
 voice path; new packets use the shared Markdown-plus-metadata contract.
 
-The public Python surface is `rex_voice_v1.SharedKnowledgeStore` with
+The public Python surface is `voice chat runtime.SharedKnowledgeStore` with
 `publish_shared_knowledge`, `prepare_for_voice`, `retrieve_for_voice`,
 `list_prepared`, and `resolve_topic`. Hermes text exposes the same intent through
 `publish_shared_knowledge`, `prepare_for_voice`, and

@@ -1,11 +1,11 @@
-name: rex-voice-mode
+name: hermes-voice-chat
 version: 0.1.0
-description: "Separate call-oriented Rex Voice runtime and explicit Hermes CLI adapter; does not replace Hermes /voice."
-author: Local Rex project
+description: "Separate call-oriented voice chat runtime and explicit Hermes CLI adapter; does not replace Hermes /voice."
+author: Hermes community project
 kind: standalone
 commands:
-  - rex-voice-mode
+  - voice-chat
   - voice-knowledge
 cli_commands:
-  - call-voice
+  - voice-chat
   - voice-knowledge
