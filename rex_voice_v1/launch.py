@@ -627,15 +627,15 @@ class RexVoiceSession:
         if not job or not self.backend:
             return None
         worker_env = os.environ.copy()
-        worker_env["REX_POST_CALL_MODEL"] = model or os.getenv(
-            "REX_POST_CALL_MODEL", "/models/Qwen3.8-27B-UD-Q4_K_XL.gguf"
+        worker_env["REX_POST_CALL_WORK_MODEL"] = model or os.getenv(
+            "REX_POST_CALL_WORK_MODEL", "/models/Qwen3.8-27B-UD-Q4_K_XL.gguf"
         )
-        worker_env["REX_POST_CALL_PROVIDER"] = provider or os.getenv(
-            "REX_POST_CALL_PROVIDER", "Qwen 27B"
+        worker_env["REX_POST_CALL_WORK_PROVIDER"] = provider or os.getenv(
+            "REX_POST_CALL_WORK_PROVIDER", "Qwen 27B"
         )
         print(
             f"POST_CALL_WORKER_START_ALLOWED job_id={job['job_id']} "
-            f"model={worker_env['REX_POST_CALL_MODEL']} provider={worker_env['REX_POST_CALL_PROVIDER']}",
+            f"model={worker_env['REX_POST_CALL_WORK_MODEL']} provider={worker_env['REX_POST_CALL_WORK_PROVIDER']}",
             flush=True,
         )
         worker = start_detached(
@@ -646,8 +646,8 @@ class RexVoiceSession:
         released = dict(job)
         released["execution_gate"] = {
             "status": "released",
-            "model": worker_env["REX_POST_CALL_MODEL"],
-            "provider": worker_env["REX_POST_CALL_PROVIDER"],
+            "model": worker_env["REX_POST_CALL_WORK_MODEL"],
+            "provider": worker_env["REX_POST_CALL_WORK_PROVIDER"],
         }
         PostCallQueue(self.backend.store.root / "post-call").save(released)
         self._post_call_worker_started = True

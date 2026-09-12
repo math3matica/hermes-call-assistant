@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import tempfile
@@ -33,7 +34,8 @@ def classify_improvement(proposal: dict[str, Any], packet: dict[str, Any]) -> di
         evidence_ok = isinstance(evidence, list) and bool(evidence) and all(
             isinstance(item, str) and item in _user_texts(packet) for item in evidence
         )
-        if proposal.get("requested_by_user") is True and float(proposal.get("confidence", 0)) >= 0.9 and evidence_ok and isinstance(spec, dict) and spec:
+        operator_opted_in = os.getenv("HERMES_CALL_ASSISTANT_AUTO_IMPROVE", "false").lower() in {"1", "true", "yes", "on"}
+        if (proposal.get("requested_by_user") is True or operator_opted_in) and float(proposal.get("confidence", 0)) >= 0.9 and evidence_ok and isinstance(spec, dict) and spec:
             policy = AUTO
         else:
             policy = APPROVAL_REQUIRED

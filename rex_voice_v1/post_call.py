@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .improvement_policy import classify_improvement
+from .github_improvement import apply_github_backed_improvement, default_tests
 from .store import VoiceSessionStore
 from .call_learning import (
     get_call_learning_status,
@@ -305,6 +306,8 @@ def validate_interpretation(value: Any, *, packet: dict[str, Any] | None = None)
             "transcript_evidence": _bounded(raw.get("transcript_evidence"), 8, 600),
             "deterministic_spec": raw.get("deterministic_spec") if isinstance(raw.get("deterministic_spec"), dict) else {},
             "source_refs": _bounded(raw.get("source_refs"), 8, 300),
+            "target_files": _bounded(raw.get("target_files"), 8, 240),
+            "patch": raw.get("patch") if isinstance(raw.get("patch"), str) else "",
         }
         decision = classify_improvement(normalized, packet or {})
         normalized.update({"policy_class": decision["policy_class"], "status": decision["approval"],
@@ -557,6 +560,19 @@ class PostCallProcessor:
             interpretation["work_proposals"] = explicit + interpretation["work_proposals"]
         job["interpretation"] = interpretation
         job["learning_records"] = interpretation["learning_records"]
+        auto_results: list[dict[str, Any]] = []
+        for improvement in interpretation.get("improvement_proposals", []):
+            try:
+                auto_results.append(apply_github_backed_improvement(improvement, job["packet"], run_tests=default_tests))
+            except Exception as exc:
+                auto_results.append({"status": "deferred", "reason": str(exc)})
+        job["auto_improvements"] = auto_results
+        if auto_results:
+            job["interpretation"]["improvement_proposals"] = [
+                {**proposal, "execution_result": result}
+                for proposal, result in zip(interpretation.get("improvement_proposals", []), auto_results)
+            ]
+            interpretation = job["interpretation"]
         quick_notes_error = None
         work: list[dict[str, Any]] = []
         previous = {item.get("id"): item for item in job.get("work", []) if isinstance(item, dict)}
@@ -635,8 +651,8 @@ class PostCallProcessor:
                     state_root,
                     job["packet"],
                     proposal,
-                    model=os.getenv("REX_POST_CALL_MODEL", "/models/Qwen3.8-27B-UD-Q4_K_XL.gguf"),
-                    provider=os.getenv("REX_POST_CALL_PROVIDER", "Qwen 27B"),
+                    model=os.getenv("REX_POST_CALL_ANALYSIS_MODEL", "gpt-5.6-luna"),
+                    provider=os.getenv("REX_POST_CALL_ANALYSIS_PROVIDER", "openai-codex"),
                     job=job,
                 )
                 job["quick_notes"] = VoiceSessionStore(state_root).quick_notes()
@@ -761,10 +777,8 @@ def _model_json(prompt: str) -> dict[str, Any]:
         "none",
         "-Q",
     ]
-    if os.getenv("REX_POST_CALL_MODEL"):
-        command.extend(["-m", os.environ["REX_POST_CALL_MODEL"]])
-    if os.getenv("REX_POST_CALL_PROVIDER"):
-        command.extend(["--provider", os.environ["REX_POST_CALL_PROVIDER"]])
+    command.extend(["-m", os.getenv("REX_POST_CALL_ANALYSIS_MODEL", "gpt-5.6-luna")])
+    command.extend(["--provider", os.getenv("REX_POST_CALL_ANALYSIS_PROVIDER", "openai-codex")])
     command.extend(["--source", "rex_post_call", "-q", prompt])
     timeout = float(os.getenv("REX_POST_CALL_LEARNING_TIMEOUT", "120"))
     for attempt in range(2):
@@ -881,10 +895,8 @@ class HermesWorkExecutor:
             "--toolsets", os.getenv("REX_POST_CALL_WORK_TOOLSETS", "web,terminal,file"),
             "--max-turns", os.getenv("REX_POST_CALL_WORK_MAX_TURNS", "16"), "--yolo",
         ]
-        if os.getenv("REX_POST_CALL_MODEL"):
-            command.extend(["-m", os.environ["REX_POST_CALL_MODEL"]])
-        if os.getenv("REX_POST_CALL_PROVIDER"):
-            command.extend(["--provider", os.environ["REX_POST_CALL_PROVIDER"]])
+        command.extend(["-m", os.getenv("REX_POST_CALL_WORK_MODEL", os.getenv("REX_POST_CALL_MODEL", "/models/Qwen3.8-27B-UD-Q4_K_XL.gguf"))])
+        command.extend(["--provider", os.getenv("REX_POST_CALL_WORK_PROVIDER", os.getenv("REX_POST_CALL_PROVIDER", "Qwen 27B"))])
         command.extend(["--source", "rex_post_call_work", "--no-restore-cwd", "-q", prompt])
         completed = self.runner(
             command,
@@ -934,11 +946,12 @@ def default_model_processor(queue: PostCallQueue) -> PostCallProcessor:
         prompt = (
             "/no_think\n"
             "Extract durable learning from this closed voice chat call. This is one bounded extraction task, not "
-            "post-call planning or work execution. Do not execute assignments, browse, edit files, research, "
-            "inspect the repository, or propose implementation work. Return exactly one JSON object and then stop. "
+            "post-call planning or work execution. Do not execute assignments, browse, edit files, or research. "
+            "Return exactly one JSON object and then stop. "
             "Use exactly these top-level keys, each with an array value: explicit_preferences, explicit_decisions, "
             "behavioral_corrections, feature_requests, project_information, memory_updates, prepared_topics_affected, "
-            "assignment_quality_observations, runtime_failures, engineering_observations, possible_inferences. "
+            "assignment_quality_observations, runtime_failures, engineering_observations, possible_inferences, "
+            "improvement_proposals. "
             "Empty categories must be []. Return at most one item in any category and at most eight items total. "
             "Keep every statement and evidence_summary under 240 characters. Every item must contain only the fields required by the learning validator: "
             "statement, confidence_class, source_session_id, source_turn_ids, evidence_summary, and topic_ids. "
@@ -946,7 +959,12 @@ def default_model_processor(queue: PostCallQueue) -> PostCallProcessor:
             "only for hypotheses. Feature requests are requests, not capability facts. Runtime and engineering "
             "observations are not user memory. Assignment-quality observations must use the deterministic requested "
             "and actual values when supplied; do not invent counts. Do not include chain-of-thought, markdown, logs, "
-            "legacy work-planning fields, or any text outside the JSON object.\n\n"
+            "legacy work-planning fields, or any text outside the JSON object. For improvement_proposals, only "
+            "propose a bounded Python runtime repair when the call contains concrete evidence and confidence is "
+            "at least 0.9. Include id, title, request, confidence, requested_by_user, transcript_evidence, "
+            "deterministic_spec, target_files, and a small unified diff patch. Target files must be existing "
+            "rex_voice_v1/*.py files; never propose tests, secrets, system files, phone operations, or arbitrary "
+            "shell. Use [] when no evidence-backed repair is justified.\n\n"
             + "Evidence packet:\n"
             + json.dumps(packet, ensure_ascii=False)
         )
