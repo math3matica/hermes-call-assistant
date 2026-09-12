@@ -134,7 +134,9 @@ def apply_github_backed_improvement(proposal: dict[str, Any], packet: dict[str, 
         commit = commit_result.stdout.strip()
         push = _run(repo, ["push", "origin", "HEAD:master"], timeout=300)
         if push.returncode:
-            raise ImprovementRejected(f"GitHub push failed; local commit {commit} is preserved: {push.stderr[-1200:]}")
+            rollback = _run(repo, ["revert", "--no-edit", commit], timeout=120)
+            rollback_note = "local commit reverted" if rollback.returncode == 0 else f"local revert failed: {rollback.stderr[-600:]}"
+            raise ImprovementRejected(f"GitHub push failed; {rollback_note}: {push.stderr[-1200:]}")
     except Exception:
         if commit is None:
             _run(repo, ["restore", "--staged", "--", *targets], timeout=30)
