@@ -14,6 +14,7 @@ from typing import Any, Callable
 from .improvement_policy import classify_improvement
 from .github_improvement import apply_github_backed_improvement, default_tests
 from .store import VoiceSessionStore
+from .settings import user_data_root
 from .call_learning import (
     get_call_learning_status,
     proposal_from_legacy,
@@ -366,7 +367,7 @@ def _persist_assignment_result(packet: dict[str, Any], proposal: dict[str, Any],
                 packet_assignment.clear()
                 packet_assignment.update(assignment)
         _write(path, record)
-        assignment_path = path.parent.parent / "assignments" / f"{assignment_id}.json"
+        assignment_path = user_data_root() / "Assignments" / f"{assignment_id}.json"
         _write(assignment_path, assignment)
         return
 

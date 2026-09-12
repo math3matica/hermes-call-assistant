@@ -72,10 +72,11 @@ or missing required values fail closed rather than starting a partial session.
 |---|---:|---|
 | `OBSIDIAN_VAULT_PATH` | live session | Authorized Vault root; no default; startup fails if absent |
 | `HERMES_CALL_ASSISTANT_SOCKET` | plugin status | Private control socket; required when using the plugin adapter |
-| `HERMES_CALL_ASSISTANT_ARTIFACTS` | optional | Session/post-call state; defaults to `~/.hermes/cache/hermes-call-assistant` |
+| `HERMES_CALL_ASSISTANT_ARTIFACTS` | optional | Private session/post-call state; defaults to `~/.hermes/cache/hermes-call-assistant` |
+| `HERMES_CALL_ASSISTANT_DATA_ROOT` | optional | User-visible assignments, prepared talking points, notes, and settings; defaults to `~/Documents/Hermes Call Assistant` |
 | `HERMES_CALL_ASSISTANT_PI` | optional | `pi` executable; defaults to `~/.local/bin/pi` |
 | `HERMES_CALL_ASSISTANT_SUPERVISOR` | model-managed run | External model supervisor; missing value blocks model management |
-| `HERMES_CALL_ASSISTANT_PREPARED_ROOTS` | optional | Colon-separated authorized read/search roots; default is none |
+| `HERMES_CALL_ASSISTANT_PREPARED_ROOTS` | optional | Additional JSON-configured authorized read/search roots; the user-visible settings roots are loaded automatically |
 | `HERMES_CALL_ASSISTANT_DOCUMENT_PLUGIN` | optional | Hermes document-store plugin path; defaults to `~/.hermes/plugins/document-store/__init__.py`, with legacy Rex Vault fallback |
 | `HERMES_CALL_ASSISTANT_PROVIDER`, `HERMES_CALL_ASSISTANT_MODEL` | optional | Provider/model selection; defaults are implementation-local and should be set explicitly |
 | `HERMES_CALL_ASSISTANT_CONTEXT_WINDOW`, `HERMES_CALL_ASSISTANT_MAX_TOKENS` | optional | Context/output bounds; defaults are `131072` and `4096` |
@@ -145,6 +146,21 @@ behavior and the no-plugin case (when the adapter is simply not loaded).
 This repository bundles the text-facing Shared Knowledge component with the
 separate Call Assistant runtime. It does not add a fourth project.
 
+### User-facing notes and dashboard access
+
+The default Call Assistant notes folder is
+`~/Documents/Hermes Call Assistant/Notes`. The same data root contains
+`Assignments/`, `Prepared Talking Points/`, and `settings.json`; inspect it
+with `hermes call-assistant-settings`. The private Hermes cache contains
+transcripts, audio, sessions, and post-call artifacts instead.
+
+The dashboard edition is available at the **Call Assistant** tab when this
+plugin's `dashboard/` directory is installed. It shows the data-root folders
+and the exact voice-readable roots, and permits explicit grant/revoke of
+read/search access to existing directories. A folder marked **prepared** is
+eligible for the bounded talking-points workflow; it does not grant write
+access and the assistant never scans arbitrary paths.
+
 - **Shared Knowledge** is durable, canonical, user-authorized knowledge stored
   as Markdown under `OBSIDIAN_VAULT_PATH/Knowledge`. It is published explicitly;
   raw transcripts, LCM artifacts, ByteRover data, assignments, and arbitrary
@@ -153,8 +169,10 @@ separate Call Assistant runtime. It does not add a fourth project.
   Call Voice. Packets record authorized source paths, SHA-256 source metadata,
   provenance, and current/stale/invalid state. Voice retrieval is topical and
   bounded, and stale packets are not activated.
-- **Voice Workspace** is ephemeral live voice working state: drafts, notes,
-  assignments, and per-call artifacts remain separate from canonical knowledge.
+`Voice Workspace` is ephemeral live voice working state. User-facing assignments,
+prepared talking points, and configured notes live in the separate data root shown
+by `call-assistant-settings`; private sessions, transcripts, audio, and post-call
+artifacts remain under the Hermes profile cache.
 - **ByteRover/LCM/session history** is broader system memory used by the larger
   Hermes reasoning layer. It is not directly dumped into the smaller voice
   model.
@@ -165,6 +183,7 @@ The bundled Hermes surfaces are registered by `plugin/`:
 - `prepare_for_voice`
 - `retrieve_shared_knowledge`
 - `/call-knowledge` and the native `hermes call-knowledge` command
+- `/call-assistant-settings` and the native `hermes call-assistant-settings` command
 
 The reusable workflow is documented in `skills/prepare-for-voice/SKILL.md`.
 Post-call promotion is conservative: only explicit decisions and bounded

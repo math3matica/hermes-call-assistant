@@ -57,6 +57,7 @@ def _command(raw_args: str) -> str:
 
 # Bundled Shared Knowledge / Prepared Briefing surfaces.
 from rex_voice_v1.shared_knowledge import SharedKnowledgeError, SharedKnowledgeStore, configured_vault_root
+from rex_voice_v1.settings import inspect_settings
 import shlex
 
 def _store() -> SharedKnowledgeStore:
@@ -116,9 +117,18 @@ def _retrieve(args: dict[str, Any], **_: Any) -> str:
         return json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False)
 
 
+def _settings(args: dict[str, Any], **_: Any) -> str:
+    try:
+        return json.dumps({"status": "ok", **inspect_settings()}, ensure_ascii=False, sort_keys=True)
+    except (OSError, ValueError) as exc:
+        return json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False)
+
+
 def _cli(ctx: Any, raw: str) -> str:
     try:
         args = shlex.split(raw)
+        if args and args[0] in {"settings", "roots"}:
+            return _settings({})
         store = _store()
         if not args or args[0] == "list":
             return json.dumps({"status": "ok", "packets": store.list_prepared()}, ensure_ascii=False, default=str)
@@ -129,7 +139,7 @@ def _cli(ctx: Any, raw: str) -> str:
             return json.dumps({"status": "ok", "packets": [item for item in store.list_prepared() if item.get("state") in {"stale", "invalid"}]}, ensure_ascii=False, default=str)
         if args[0] in {"prepare", "refresh"} and len(args) >= 3:
             return _prepare({"topic": args[1], "sources": args[2:], "_ctx": ctx})
-        return "Usage: /call-knowledge list | show <topic> | stale | prepare <topic> <authorized-source>..."
+        return "Usage: /call-knowledge list | show <topic> | stale | prepare <topic> <authorized-source>... | settings"
     except (SharedKnowledgeError, OSError, ValueError) as exc:
         return json.dumps({"status": "error", "error": str(exc)})
 
@@ -152,10 +162,12 @@ def _register_voice_knowledge(ctx: Any) -> None:
     ctx.register_tool(name="publish_shared_knowledge", toolset="voice_knowledge", schema=_publish_schema(), handler=with_context(_publish), emoji="📚")
     ctx.register_tool(name="prepare_for_voice", toolset="voice_knowledge", schema=_prepare_schema(), handler=with_context(_prepare), emoji="📞")
     ctx.register_tool(name="retrieve_shared_knowledge", toolset="voice_knowledge", schema=_retrieve_schema(), handler=with_context(_retrieve), emoji="🔎")
-    ctx.register_command("call-knowledge", lambda raw: _cli(ctx, raw), description="Inspect Shared Knowledge and prepared Voice briefings.", args_hint="list | show <topic> | stale | prepare <topic> <source>...")
+    ctx.register_tool(name="call_assistant_settings", toolset="call_assistant", schema={"description": "Show the user-visible Call Assistant data folder and exact note/talking-point roots readable by voice.", "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False}}, handler=_settings, check_fn=lambda: True, emoji="🗂️", capabilities=("voice.settings",))
+    ctx.register_command("call-knowledge", lambda raw: _cli(ctx, raw), description="Inspect Shared Knowledge, prepared briefings, and voice settings.", args_hint="list | show <topic> | stale | prepare <topic> <source>... | settings")
+    ctx.register_command("call-assistant-settings", lambda raw: _settings({}), description="Show Call Assistant data and voice access settings.", args_hint="")
     if hasattr(ctx, "register_cli_command"):
         def setup(parser: Any) -> None:
-            parser.add_argument("operation", choices=("list", "show", "stale", "prepare", "refresh"))
+            parser.add_argument("operation", choices=("list", "show", "stale", "prepare", "refresh", "settings"))
             parser.add_argument("topic", nargs="?")
             parser.add_argument("sources", nargs="*")
         def handler(args: Any) -> None:
@@ -165,6 +177,7 @@ def _register_voice_knowledge(ctx: Any) -> None:
             raw += " " + " ".join(shlex.quote(item) for item in args.sources)
             print(_cli(ctx, raw))
         ctx.register_cli_command(name="call-knowledge", help="Manage Shared Knowledge and prepared Voice briefings.", setup_fn=setup, handler_fn=handler, description="Inspect and prepare user-authorized voice knowledge.")
+        ctx.register_cli_command(name="call-assistant-settings", help="Inspect Call Assistant data and voice access settings.", setup_fn=lambda _parser: None, handler_fn=lambda _args: print(_settings({})), description="Show the user-visible data folder and exact voice-readable roots.")
 
 def register(ctx) -> None:
     ctx.register_tool(name="call_assistant_status", toolset="call_assistant", schema={

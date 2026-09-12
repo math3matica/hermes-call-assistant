@@ -8,6 +8,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .settings import user_data_root
+
 
 class VoiceSessionStore:
     """Durable, Hermes-owned V1 handoff artifacts.
@@ -17,14 +19,15 @@ class VoiceSessionStore:
     system; it is the bounded handoff ledger for one voice session.
     """
 
-    def __init__(self, root: Path, *, session_db: Any | None = None):
+    def __init__(self, root: Path, *, session_db: Any | None = None, data_root: Path | None = None):
         self.root = Path(root).expanduser()
         self.session_db = session_db
         self.sessions = self.root / "sessions"
-        self.assignments = self.root / "assignments"
+        self.data_root = Path(data_root or user_data_root()).expanduser()
+        self.assignments = self.data_root / "Assignments"
         self.drafts = self.root / "drafts"
         self.quick_notes_path = self.root / "quick-notes.json"
-        self.prepared_topics = self.root / "prepared-topics"
+        self.prepared_topics = self.data_root / "Prepared Talking Points" / "topics"
         self.sessions.mkdir(parents=True, exist_ok=True)
         self.assignments.mkdir(parents=True, exist_ok=True)
         self.drafts.mkdir(parents=True, exist_ok=True)

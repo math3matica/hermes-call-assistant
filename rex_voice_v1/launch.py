@@ -24,6 +24,7 @@ from .hermes_backend import RexVaultAdapter
 from .post_call import PostCallQueue, enqueue_closed_session
 from .post_call_worker import start_background, start_detached
 from .store import VoiceSessionStore
+from .settings import load_settings, user_data_root
 from .protocol import MODEL_CAPABILITIES
 
 
@@ -483,6 +484,9 @@ class RexVoiceSession:
         os.environ["REX_VOICE_SESSION_ID"] = self.session_id
         vault_root = Path(os.environ["OBSIDIAN_VAULT_PATH"])
         workspace = RexVoiceWorkspace(vault_root)
+        user_settings = load_settings(create=True)
+        for item in user_settings["authorized_note_roots"] + user_settings["prepared_talking_points_roots"]:
+            workspace.grant_root(str(item["id"]), Path(str(item["path"])), modes=("read", "search"))
         prepared_roots = os.getenv("HERMES_CALL_ASSISTANT_PREPARED_ROOTS", os.getenv("REX_VOICE_PREPARED_ROOTS", ""))
         if prepared_roots:
             for item in json.loads(prepared_roots):
@@ -495,7 +499,7 @@ class RexVoiceSession:
             self.session_db = SessionDB()
         except Exception as exc:
             print(f"WARNING: canonical Hermes session store unavailable: {exc}", file=sys.stderr)
-        store = VoiceSessionStore(self.session_root.parent, session_db=self.session_db)
+        store = VoiceSessionStore(self.session_root.parent, session_db=self.session_db, data_root=user_data_root())
         self.backend = CapabilityBackend(vault, store, workspace=workspace, acceptance_gate=self.acceptance_gate, telemetry=observer)
         cleanup_stale_sockets(store_root=self.session_root.parent, session_db=self.session_db)
         self.backend.start_session(self.session_id, topic=self.topic)

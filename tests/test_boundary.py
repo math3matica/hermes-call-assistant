@@ -71,10 +71,10 @@ def test_hermes_adapter_uses_public_non_overriding_surfaces():
         def register_cli_command(self, **kwargs): self.cli_commands.append(kwargs)
     ctx = Context()
     register(ctx)
-    assert [tool["name"] for tool in ctx.tools] == ["call_assistant_status", "publish_shared_knowledge", "prepare_for_voice", "retrieve_shared_knowledge"]
+    assert [tool["name"] for tool in ctx.tools] == ["call_assistant_status", "publish_shared_knowledge", "prepare_for_voice", "retrieve_shared_knowledge", "call_assistant_settings"]
     assert ctx.tools[0]["schema"]["parameters"]["additionalProperties"] is False
     assert ctx.commands[0][0][0] == "call-assistant"
-    assert [command["name"] for command in ctx.cli_commands] == ["call-assistant", "call-knowledge"]
+    assert [command["name"] for command in ctx.cli_commands] == ["call-assistant", "call-knowledge", "call-assistant-settings"]
 
 
 def test_plugin_registration_is_inert_and_never_claims_builtin_voice(monkeypatch):
@@ -93,7 +93,7 @@ def test_plugin_registration_is_inert_and_never_claims_builtin_voice(monkeypatch
     names = [tool["name"] for tool in ctx.tools]
     names += [args[0] for args, _kwargs in ctx.commands]
     names += [command["name"] for command in ctx.cli_commands]
-    assert names == ["call_assistant_status", "publish_shared_knowledge", "prepare_for_voice", "retrieve_shared_knowledge", "call-assistant", "call-knowledge", "call-assistant", "call-knowledge"]
+    assert names == ["call_assistant_status", "publish_shared_knowledge", "prepare_for_voice", "retrieve_shared_knowledge", "call_assistant_settings", "call-assistant", "call-knowledge", "call-assistant-settings", "call-assistant", "call-knowledge", "call-assistant-settings"]
     assert "/voice" not in names
     assert calls == []
 

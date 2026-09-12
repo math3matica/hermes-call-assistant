@@ -6,6 +6,8 @@ kind: standalone
 commands:
   - call-assistant
   - call-knowledge
+  - call-assistant-settings
 cli_commands:
   - call-assistant
   - call-knowledge
+  - call-assistant-settings

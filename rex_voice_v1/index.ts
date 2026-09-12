@@ -2,7 +2,7 @@ import net from "node:net";
 import fs from "node:fs";
 import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { explicitHangupRequest, requestedAction, routeTurn } from "./routing.ts";
+import { explicitHangupRequest, liveRequestText, requestedAction, routeTurn } from "./routing.ts";
 
 const socketPath = process.env.REX_VOICE_BRIDGE_SOCKET;
 if (!socketPath) throw new Error("REX_VOICE_BRIDGE_SOCKET is required");
@@ -170,12 +170,13 @@ export default function rexVoiceExtension(pi: ExtensionAPI) {
     // tool-forcing policy and does not execute or parse assistant text.
     // Tool control belongs to ExtensionAPI (`pi`), not ExtensionContext (`ctx`).
     // This is a supported runtime operation and is applied before the request.
-    const currentAction = requestedAction(event.text);
-    if (explicitHangupRequest(event.text)) {
+    const currentText = liveRequestText(event.text);
+    const currentAction = requestedAction(currentText);
+    if (explicitHangupRequest(currentText)) {
       // Session termination wins over any unfinished assignment continuation.
       // Do not let the current utterance become assignment content.
       assignmentCapturePending = false;
-    } else if (assignmentCancellation(event.text)) {
+    } else if (assignmentCancellation(currentText)) {
       assignmentCapturePending = false;
     } else if (currentAction === "assignment_capture") {
       // Assignment setup is conversational: the user may announce the
@@ -183,7 +184,7 @@ export default function rexVoiceExtension(pi: ExtensionAPI) {
       // Preserve that explicit intent until a native capture succeeds.
       assignmentCapturePending = true;
     }
-    pi.setActiveTools(routeTurn(event.text, assignmentCapturePending).activeTools);
+    pi.setActiveTools(routeTurn(currentText, assignmentCapturePending).activeTools);
     return { action: "continue" };
   });
   pi.on("tool_execution_end", (event) => {
@@ -195,7 +196,7 @@ export default function rexVoiceExtension(pi: ExtensionAPI) {
     // The retry is injected by the host as a follow-up prompt, so it does not
     // emit another `input` event. Classify only the last user message here;
     // never inspect the system prompt or historical turns.
-    const lastText = lastMessageIsUser(event.payload) ? lastUserText(event.payload) : "";
+    const lastText = lastMessageIsUser(event.payload) ? liveRequestText(lastUserText(event.payload)) : "";
     const requested = lastText ? routeTurn(lastText, assignmentCapturePending).requested : undefined;
     const topicControl = lastText ? preparedTopicControl(lastText) : undefined;
     let providerPayload = restrictPhoneHangup(event.payload as Record<string, unknown>, lastText);

@@ -1,0 +1,13 @@
+{
+  "name": "hermes-call-assistant",
+  "label": "Call Assistant",
+  "description": "Inspect Call Assistant notes and explicitly authorize note and prepared-talking-point folders",
+  "icon": "PhoneCall",
+  "version": "0.1.0",
+  "tab": {
+    "path": "/call-assistant",
+    "position": "after:skills"
+  },
+  "entry": "dist/index.js",
+  "api": "plugin_api.py"
+}
