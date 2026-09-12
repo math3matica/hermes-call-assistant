@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Transparent local OpenAI-compatible proxy for Voice Chat qualification.
+"""Transparent local OpenAI-compatible proxy for Call Assistant qualification.
 
 It records request message/tool structure and response metadata while forwarding
 bytes unchanged. It is intended for local experiments only; API credentials are

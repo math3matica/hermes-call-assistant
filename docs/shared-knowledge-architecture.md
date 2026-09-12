@@ -9,7 +9,7 @@ ByteRover / LCM / text session history
  Shared Knowledge       Prepared Briefing
   (canonical Markdown)   (Markdown + metadata)
           \                /
-             Special Call Voice
+             Call Assistant
 
 Voice Workspace, audio, live state, raw transcripts, and caches remain separate.
 Hermes built-in /voice is independent.
@@ -29,7 +29,7 @@ briefing, then canonical Shared Knowledge. It never dumps ByteRover, LCM, raw
 session history, or unrelated packets. Prepared text is reference data, not
 instructions; current user instructions take precedence.
 
-Use `/voice-knowledge list`, `show <topic>`, `stale`, or `prepare <topic> <source>`.
+Use `/call-knowledge list`, `show <topic>`, `stale`, or `prepare <topic> <source>`.
 
 ## Storage and compatibility
 
@@ -40,11 +40,11 @@ files, session JSON, assignments, transcripts, and post-call artifacts are not
 deleted or rewritten. Existing cache packets remain readable through the legacy
 voice path; new packets use the shared Markdown-plus-metadata contract.
 
-The public Python surface is `voice chat runtime.SharedKnowledgeStore` with
+The public Python surface is `call assistant runtime.SharedKnowledgeStore` with
 `publish_shared_knowledge`, `prepare_for_voice`, `retrieve_for_voice`,
 `list_prepared`, and `resolve_topic`. Hermes text exposes the same intent through
 `publish_shared_knowledge`, `prepare_for_voice`, and
-`retrieve_shared_knowledge` tools, plus `/voice-knowledge` and its native CLI
+`retrieve_shared_knowledge` tools, plus `/call-knowledge` and its native CLI
 command. Preparation uses the host-owned `ctx.llm`; it does not select or name a
 provider or realtime model.
 
@@ -54,6 +54,6 @@ in the call artifacts. Assignments stay in the existing assignment/job layer and
 are not converted into knowledge automatically.
 
 Built-in Hermes `/voice` is not imported, modified, or made dependent on this
-module. Special Call Voice integration is limited to the existing capability
+module. Call Assistant integration is limited to the existing capability
 backend's bounded `retrieval` path and does not expose LCM, ByteRover, or raw
 Hermes session stores to the call model.

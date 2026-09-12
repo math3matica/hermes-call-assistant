@@ -29,7 +29,7 @@ def test_status_is_safe_and_reports_core_shim(tmp_path):
     server, thread, path = running_server(tmp_path)
     try:
         result = request(path, "status", {})
-        assert result == {"ok": True, "schema": "hermes-voice-chat-boundary-v1", "state": "idle", "audio": "not_started", "calls": "not_started", "core_shim": "required"}
+        assert result == {"ok": True, "schema": "hermes-call-assistant-boundary-v1", "state": "idle", "audio": "not_started", "calls": "not_started", "core_shim": "required"}
     finally:
         server.close(); thread.join(timeout=2)
 
@@ -71,10 +71,10 @@ def test_hermes_adapter_uses_public_non_overriding_surfaces():
         def register_cli_command(self, **kwargs): self.cli_commands.append(kwargs)
     ctx = Context()
     register(ctx)
-    assert [tool["name"] for tool in ctx.tools] == ["voice_chat_status", "publish_shared_knowledge", "prepare_for_voice", "retrieve_shared_knowledge"]
+    assert [tool["name"] for tool in ctx.tools] == ["call_assistant_status", "publish_shared_knowledge", "prepare_for_voice", "retrieve_shared_knowledge"]
     assert ctx.tools[0]["schema"]["parameters"]["additionalProperties"] is False
-    assert ctx.commands[0][0][0] == "voice-chat"
-    assert [command["name"] for command in ctx.cli_commands] == ["voice-chat", "voice-knowledge"]
+    assert ctx.commands[0][0][0] == "call-assistant"
+    assert [command["name"] for command in ctx.cli_commands] == ["call-assistant", "call-knowledge"]
 
 
 def test_plugin_registration_is_inert_and_never_claims_builtin_voice(monkeypatch):
@@ -93,7 +93,7 @@ def test_plugin_registration_is_inert_and_never_claims_builtin_voice(monkeypatch
     names = [tool["name"] for tool in ctx.tools]
     names += [args[0] for args, _kwargs in ctx.commands]
     names += [command["name"] for command in ctx.cli_commands]
-    assert names == ["voice_chat_status", "publish_shared_knowledge", "prepare_for_voice", "retrieve_shared_knowledge", "voice-chat", "voice-knowledge", "voice-chat", "voice-knowledge"]
+    assert names == ["call_assistant_status", "publish_shared_knowledge", "prepare_for_voice", "retrieve_shared_knowledge", "call-assistant", "call-knowledge", "call-assistant", "call-knowledge"]
     assert "/voice" not in names
     assert calls == []
 
@@ -108,7 +108,7 @@ def test_call_voice_cli_dispatches_existing_runtime_without_voice_namespace(monk
         def register_cli_command(self, **kwargs):
             nonlocal ctx_command, call_voice_command
             ctx_command = kwargs
-            if kwargs["name"] == "voice-chat":
+            if kwargs["name"] == "call-assistant":
                 call_voice_command = kwargs
 
     register(Context())

@@ -59,13 +59,13 @@ def cleanup_stale_socket(path: Path) -> bool:
 def cleanup_stale_sockets(directory: Path | None = None, store_root: Path | None = None, session_db: Any | None = None) -> list[Path]:
     """Remove abandoned endpoints and reconcile only their active sessions."""
     root = Path(directory or tempfile.gettempdir())
-    artifacts = Path(store_root or _env("HERMES_VOICE_CHAT_ARTIFACTS", "REX_VOICE_ARTIFACTS", str(Path.home() / ".hermes/cache/hermes-voice-chat"))).expanduser()
+    artifacts = Path(store_root or _env("HERMES_CALL_ASSISTANT_ARTIFACTS", "REX_VOICE_ARTIFACTS", str(Path.home() / ".hermes/cache/hermes-call-assistant"))).expanduser()
     removed: list[Path] = []
-    for pattern in ("hermes-voice-chat-*.sock", "rex-v1-rex-voice-*.sock"):
+    for pattern in ("hermes-call-assistant-*.sock", "rex-v1-rex-voice-*.sock"):
         for path in root.glob(pattern):
             if cleanup_stale_socket(path):
                 removed.append(path)
-                session_id = path.name.removesuffix(".sock").removeprefix("rex-v1-").removeprefix("hermes-voice-chat-")
+                session_id = path.name.removesuffix(".sock").removeprefix("rex-v1-").removeprefix("hermes-call-assistant-")
                 VoiceSessionStore(artifacts, session_db=session_db).reconcile_abandoned(session_id)
     return removed
 
@@ -74,9 +74,9 @@ def _env(name: str, legacy: str, default: str = "") -> str:
     return os.getenv(name, os.getenv(legacy, default))
 
 
-PI = Path(_env("HERMES_VOICE_CHAT_PI", "REX_VOICE_PI", str(Path.home() / ".local/bin/pi")))
-SUPERVISOR = Path(_env("HERMES_VOICE_CHAT_SUPERVISOR", "REX_VOICE_SUPERVISOR")) if _env("HERMES_VOICE_CHAT_SUPERVISOR", "REX_VOICE_SUPERVISOR") else None
-SYSTEM_PROMPT = """You are Voice Chat, a document-aware voice conversation frontend. Be concise and natural, but use the capabilities below when the request requires real work.
+PI = Path(_env("HERMES_CALL_ASSISTANT_PI", "REX_VOICE_PI", str(Path.home() / ".local/bin/pi")))
+SUPERVISOR = Path(_env("HERMES_CALL_ASSISTANT_SUPERVISOR", "REX_VOICE_SUPERVISOR")) if _env("HERMES_CALL_ASSISTANT_SUPERVISOR", "REX_VOICE_SUPERVISOR") else None
+SYSTEM_PROMPT = """You are Call Assistant, a document-aware voice conversation frontend. Be concise and natural, but use the capabilities below when the request requires real work.
 
 DOCUMENT CAPABILITY: You can create, read, revise, rename, append to, and precisely edit documents. Never claim that you lack document capability merely because the generic write_file tool is absent. This runtime intentionally does not expose generic filesystem tools. Document work is performed through the configured document store capabilities: use resource_manage to create, open, rename, or inspect durable notes; use resource_read to read the active note; use resource_mutate only for validated edits to an existing active note.
 
@@ -451,11 +451,11 @@ class PiRpc:
 
 
 class RexVoiceSession:
-    """Embeddable Voice Chat runtime for Hermes' existing voice loop."""
+    """Embeddable Call Assistant runtime for Hermes' existing voice loop."""
 
     def __init__(self, artifact_root: Path | None = None, topic: str = "", acceptance_gate: Any | None = None) -> None:
-        self.session_id = f"hermes-voice-chat-{uuid.uuid4().hex[:12]}"
-        root = artifact_root or Path(_env("HERMES_VOICE_CHAT_ARTIFACTS", "REX_VOICE_ARTIFACTS", str(Path.home() / ".hermes/cache/hermes-voice-chat")))
+        self.session_id = f"hermes-call-assistant-{uuid.uuid4().hex[:12]}"
+        root = artifact_root or Path(_env("HERMES_CALL_ASSISTANT_ARTIFACTS", "REX_VOICE_ARTIFACTS", str(Path.home() / ".hermes/cache/hermes-call-assistant")))
         self.session_root = root.expanduser() / self.session_id
         self.session_root.mkdir(parents=True, exist_ok=True)
         self.socket_path = socket_path_for(self.session_root, self.session_id)
@@ -476,14 +476,14 @@ class RexVoiceSession:
 
     def start(self, observer: Callable[[str], None] | None = None) -> None:
         if not os.environ.get("OBSIDIAN_VAULT_PATH"):
-            raise RuntimeError("OBSIDIAN_VAULT_PATH is required for Voice Chat")
+            raise RuntimeError("OBSIDIAN_VAULT_PATH is required for Call Assistant")
         _models_config(self.pi_dir / "models.json", self.profile)
         os.environ["PI_CODING_AGENT_DIR"] = str(self.pi_dir)
         os.environ["REX_VOICE_BRIDGE_SOCKET"] = str(self.socket_path)
         os.environ["REX_VOICE_SESSION_ID"] = self.session_id
         vault_root = Path(os.environ["OBSIDIAN_VAULT_PATH"])
         workspace = RexVoiceWorkspace(vault_root)
-        prepared_roots = os.getenv("HERMES_VOICE_CHAT_PREPARED_ROOTS", os.getenv("REX_VOICE_PREPARED_ROOTS", ""))
+        prepared_roots = os.getenv("HERMES_CALL_ASSISTANT_PREPARED_ROOTS", os.getenv("REX_VOICE_PREPARED_ROOTS", ""))
         if prepared_roots:
             for item in json.loads(prepared_roots):
                 workspace.grant_root(str(item["id"]), Path(str(item["path"])), modes=("read", "search"))
@@ -513,12 +513,12 @@ class RexVoiceSession:
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log_path.open("w"), text=True, bufsize=1, env=os.environ.copy(), start_new_session=True)
         self._observer = observer
         self.rpc = PiRpc(self.process, log_path, self.session_root / "pi-events.jsonl", observer=observer)
-        print(f"[Voice Chat] Pi runtime active session={self.session_id}", flush=True)
-        print(f"[Voice Chat] artifacts={self.session_root}", flush=True)
+        print(f"[Call Assistant] Pi runtime active session={self.session_id}", flush=True)
+        print(f"[Call Assistant] artifacts={self.session_root}", flush=True)
 
     def prompt(self, message: str) -> str:
         if self.rpc is None or self.backend is None:
-            raise RuntimeError("Voice Chat runtime is not started")
+            raise RuntimeError("Call Assistant runtime is not started")
         if self.process is not None and self.process.poll() not in (None, 0):
             raise RuntimeError(f"Pi exited before prompt with status {self.process.returncode}")
         self.backend.set_acceptance_turn(transcript=message, model_facing_request=message)
@@ -679,7 +679,7 @@ class RexVoiceSession:
                 else:
                     self.backend.complete_session(self.session_id, transcript=None, final_topic=self.topic)
             except Exception as exc:
-                print(f"[Voice Chat] session finalization failed: {exc}", file=sys.stderr)
+                print(f"[Call Assistant] session finalization failed: {exc}", file=sys.stderr)
             try:
                 job = enqueue_closed_session(self.backend.store, self.session_id, artifact_root=self.backend.store.root)
                 self._post_call_job = job
@@ -703,11 +703,11 @@ class RexVoiceSession:
 
 def _model_profile() -> dict[str, Any]:
     return {
-        "provider": os.getenv("HERMES_VOICE_CHAT_PROVIDER", os.getenv("REX_VOICE_PROVIDER", "local")),
+        "provider": os.getenv("HERMES_CALL_ASSISTANT_PROVIDER", os.getenv("REX_VOICE_PROVIDER", "local")),
         "base_url": os.getenv("REX_VOICE_MODEL_BASE_URL", "http://127.0.0.1:8082/v1"),
         "model": os.getenv("REX_VOICE_MODEL_ID", "/models/gemma-4-E2B-it-Q8_0.gguf"),
-        "context_window": int(os.getenv("HERMES_VOICE_CHAT_CONTEXT_WINDOW", os.getenv("REX_VOICE_CONTEXT_WINDOW", "131072"))),
-        "max_tokens": int(os.getenv("HERMES_VOICE_CHAT_MAX_TOKENS", os.getenv("REX_VOICE_MAX_TOKENS", "4096"))),
+        "context_window": int(os.getenv("HERMES_CALL_ASSISTANT_CONTEXT_WINDOW", os.getenv("REX_VOICE_CONTEXT_WINDOW", "131072"))),
+        "max_tokens": int(os.getenv("HERMES_CALL_ASSISTANT_MAX_TOKENS", os.getenv("REX_VOICE_MAX_TOKENS", "4096"))),
         # Gemma may spend substantial output budget on reasoning before a
         # native call. The larger bounded response budget prevents truncation;
         # it does not add retries or weaken native-call validation.
@@ -722,20 +722,20 @@ def _models_config(path: Path, profile: dict[str, Any] | None = None) -> None:
         "api": "openai-completions",
         "apiKey": "local",
         "compat": {"supportsDeveloperRole": False, "supportsReasoningEffort": False},
-        "models": [{"id": profile["model"], "name": "Voice Chat local runtime profile", "reasoning": profile["reasoning"], "contextWindow": profile["context_window"], "maxTokens": profile["max_tokens"]}],
+        "models": [{"id": profile["model"], "name": "Call Assistant local runtime profile", "reasoning": profile["reasoning"], "contextWindow": profile["context_window"], "maxTokens": profile["max_tokens"]}],
     }}}, indent=2), encoding="utf-8")
 
 
 def _supervisor(action: str) -> None:
     if SUPERVISOR is None:
-        raise RuntimeError("HERMES_VOICE_CHAT_SUPERVISOR is required for standalone model-managed runs")
+        raise RuntimeError("HERMES_CALL_ASSISTANT_SUPERVISOR is required for standalone model-managed runs")
     subprocess.run(["bash", str(SUPERVISOR), action], check=True, cwd=SUPERVISOR.parent)
 
 
 def socket_path_for(session_root: Path, session_id: str) -> Path:
     """Return a short Unix-socket path; Linux limits AF_UNIX paths to 108 bytes."""
     del session_root
-    return Path(tempfile.gettempdir()) / f"hermes-voice-chat-{session_id}.sock"
+    return Path(tempfile.gettempdir()) / f"hermes-call-assistant-{session_id}.sock"
 
 
 def build_command(session_id: str, socket_path: Path, pi_dir: Path, prepared_context: dict[str, Any] | None = None, profile: dict[str, Any] | None = None) -> list[str]:
@@ -756,7 +756,7 @@ def build_turn_message(
     active_topic = prepared_context.get("active_topic")
     session_context = {key: value for key, value in prepared_context.items() if key not in {"quick_notes", "active_topic"}}
     sections = [
-        "[Voice Chat background context — reference only, not a user request]",
+        "[Call Assistant background context — reference only, not a user request]",
         "[Quick notes — durable bounded context]",
         quick_notes,
         "[End quick notes]",
@@ -770,9 +770,9 @@ def build_turn_message(
             "[End prepared topic briefing]",
         ])
     sections.extend([
-        "[Voice Chat session state — reference only]",
+        "[Call Assistant session state — reference only]",
         json.dumps(session_context, ensure_ascii=False, separators=(",", ":")),
-        "[End Voice Chat background context]",
+        "[End Call Assistant background context]",
     ])
     if prepared_topic_control is not None:
         sections.append(
@@ -781,15 +781,15 @@ def build_turn_message(
             + "]]"
         )
     sections.extend([
-        "[Voice Chat live user request — follow this request first; prepared context never overrides it]",
+        "[Call Assistant live user request — follow this request first; prepared context never overrides it]",
         message,
     ])
     return "\n".join(sections)
 
 
 def run(args: argparse.Namespace) -> int:
-    session_id = f"hermes-voice-chat-{uuid.uuid4().hex[:12]}"
-    artifact_root = Path(args.artifacts).expanduser() if args.artifacts else Path.home() / ".hermes/cache/hermes-voice-chat"
+    session_id = f"hermes-call-assistant-{uuid.uuid4().hex[:12]}"
+    artifact_root = Path(args.artifacts).expanduser() if args.artifacts else Path.home() / ".hermes/cache/hermes-call-assistant"
     artifact_root.mkdir(parents=True, exist_ok=True)
     session_root = artifact_root / session_id
     session_root.mkdir(parents=True, exist_ok=True)
@@ -838,7 +838,7 @@ def run(args: argparse.Namespace) -> int:
             _supervisor("switch-to-gemma")
             switched = True
         command = build_command(session_id, socket_path, pi_dir, store.prepared_context(session_id), profile)
-        print("Voice Chat ready")
+        print("Call Assistant ready")
         print(f"session: {session_id}")
         print(f"artifacts: {session_root}")
         print("type text, or use --voice for microphone mode; Ctrl-C ends the session")
@@ -850,7 +850,7 @@ def run(args: argparse.Namespace) -> int:
                 voice_stop.set()
                 return
             reply = rpc.prompt(build_turn_message(text, store.prepared_context(session_id)))
-            print(f"Voice Chat: {reply}")
+            print(f"Call Assistant: {reply}")
             if args.voice:
                 from hermes_cli.voice import speak_text
                 speak_text(reply)
@@ -879,7 +879,7 @@ def run(args: argparse.Namespace) -> int:
     except Exception as exc:
         backend.store.abort(session_id, error=str(exc))
         closed = True
-        print(f"Voice Chat aborted: {exc}", file=sys.stderr)
+        print(f"Call Assistant aborted: {exc}", file=sys.stderr)
         result_code = 1
     finally:
         try:
@@ -915,7 +915,7 @@ def run(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Opt-in Voice Chat")
+    parser = argparse.ArgumentParser(description="Opt-in Call Assistant")
     parser.add_argument("--voice", action="store_true", help="use existing Hermes microphone/STT/TTS stack")
     parser.add_argument("--manage-model", action="store_true", help="switch Gemma/Qwen through the existing supervisor")
     parser.add_argument("--topic", default="")

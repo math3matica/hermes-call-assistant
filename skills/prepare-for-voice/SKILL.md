@@ -13,7 +13,7 @@ Briefings are bounded Markdown plus metadata with source hashes and lifecycle
 state. ByteRover, LCM, and raw session history may inform larger-model reasoning,
 but are not direct small-model briefing stores.
 
-The admin command is `/voice-knowledge list`, `show <topic>`, `stale`, or
+The admin command is `/call-knowledge list`, `show <topic>`, `stale`, or
 `prepare <topic> <authorized-source>...`; the native CLI command has the same
 operations. Never broaden source roots, include raw transcripts, or claim a
 briefing is current when its metadata says stale or invalid.

@@ -1,4 +1,4 @@
-"""Small, stable model-facing contract for Voice Chat V1."""
+"""Small, stable model-facing contract for Call Assistant V1."""
 from __future__ import annotations
 
 MODEL_CAPABILITIES = (

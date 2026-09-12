@@ -19,7 +19,7 @@ class RexVaultAdapter:
         if not self.vault_root.is_dir():
             raise CapabilityError(f"vault does not exist: {self.vault_root}")
         if plugin_path is None:
-            configured = os.environ.get("HERMES_VOICE_CHAT_DOCUMENT_PLUGIN", "").strip()
+            configured = os.environ.get("HERMES_CALL_ASSISTANT_DOCUMENT_PLUGIN", "").strip()
             plugin_path = Path(configured).expanduser() if configured else Path.home() / ".hermes/plugins/document-store/__init__.py"
             if not plugin_path.exists():
                 legacy_path = Path.home() / ".hermes/plugins/rex-vault/__init__.py"
@@ -31,7 +31,7 @@ class RexVaultAdapter:
         hermes_root = str(Path.home() / ".hermes/hermes-agent")
         if hermes_root not in sys.path:
             sys.path.insert(0, hermes_root)
-        spec = importlib.util.spec_from_file_location("hermes_voice_chat_document_provider", plugin_path)
+        spec = importlib.util.spec_from_file_location("hermes_call_assistant_document_provider", plugin_path)
         if not spec or not spec.loader:
             raise CapabilityError(f"cannot load document-store provider: {plugin_path}")
         module = importlib.util.module_from_spec(spec)

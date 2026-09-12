@@ -47,7 +47,7 @@ def process_pending(root: Path, session_id: str | None = None) -> list[dict]:
 
 
 def start_background(root: Path, session_id: str) -> threading.Thread | None:
-    if os.getenv("HERMES_VOICE_CHAT_POST_CALL_AUTOSTART", os.getenv("REX_POST_CALL_AUTOSTART", "true")).lower() in {"0", "false", "no", "off"}:
+    if os.getenv("HERMES_CALL_ASSISTANT_POST_CALL_AUTOSTART", os.getenv("REX_POST_CALL_AUTOSTART", "true")).lower() in {"0", "false", "no", "off"}:
         return None
     thread = threading.Thread(target=process_one, args=(PostCallQueue(root), session_id), name=f"rex-post-call-{session_id}", daemon=True)
     thread.start()

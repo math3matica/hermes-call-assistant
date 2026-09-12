@@ -13,7 +13,7 @@ class WorkspaceAccessError(ValueError):
 
 
 class RexVoiceWorkspace:
-    """Explicit resource boundary for Voice Chat; never exposes arbitrary paths."""
+    """Explicit resource boundary for Call Assistant; never exposes arbitrary paths."""
 
     SUBFOLDERS = {"drafts", "working-notes", "completed-notes", "inbox"}
 

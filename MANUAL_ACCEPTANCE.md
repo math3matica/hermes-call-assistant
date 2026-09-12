@@ -3,7 +3,7 @@
 These checks require a configured provider, audio devices, and optionally a
 physical phone. They were not established by the automated test suite.
 
-- [ ] Launch the separate terminal Special Call Voice runtime; confirm it does
+- [ ] Launch the separate terminal Call Assistant runtime; confirm it does
       not alter Hermes built-in `/voice`.
 - [ ] Verify model supervisor startup, readiness, and failure recovery.
 - [ ] Verify STT, TTS, microphone capture, and output routing independently.

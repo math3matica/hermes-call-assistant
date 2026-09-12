@@ -1,7 +1,7 @@
-"""Hermes adapter for the separate, call-oriented voice chat runtime.
+"""Hermes adapter for the separate, call-oriented assistant runtime.
 
 The adapter never overrides Hermes' built-in ``/voice``. Runtime activation is
-explicit through the separate ``hermes voice-chat`` command; status remains
+explicit through the separate ``hermes call-assistant`` command; status remains
 available as a safe in-session operation.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from rex_voice_mode.boundary import request
 
 
 def _setup_cli(parser: argparse.ArgumentParser) -> None:
-    parser.description = "Start or inspect the separate voice chat runtime."
+    parser.description = "Start or inspect the separate call assistant runtime."
     parser.add_argument("--voice", action="store_true", help="use Hermes microphone/STT/TTS facilities")
     parser.add_argument("--manage-model", action="store_true", help="switch the specialized model through the configured supervisor")
     parser.add_argument("--topic", default="", help="initial prepared topic")
@@ -38,9 +38,9 @@ def _run_cli(args: argparse.Namespace) -> int:
 
 
 def _socket() -> Path:
-    value = os.environ.get("HERMES_VOICE_CHAT_SOCKET", os.environ.get("REX_VOICE_MODE_SOCKET"))
+    value = os.environ.get("HERMES_CALL_ASSISTANT_SOCKET", os.environ.get("REX_VOICE_MODE_SOCKET"))
     if not value:
-        raise RuntimeError("HERMES_VOICE_CHAT_SOCKET is required")
+        raise RuntimeError("HERMES_CALL_ASSISTANT_SOCKET is required")
     return Path(value).expanduser()
 
 
@@ -129,7 +129,7 @@ def _cli(ctx: Any, raw: str) -> str:
             return json.dumps({"status": "ok", "packets": [item for item in store.list_prepared() if item.get("state") in {"stale", "invalid"}]}, ensure_ascii=False, default=str)
         if args[0] in {"prepare", "refresh"} and len(args) >= 3:
             return _prepare({"topic": args[1], "sources": args[2:], "_ctx": ctx})
-        return "Usage: /voice-knowledge list | show <topic> | stale | prepare <topic> <authorized-source>..."
+        return "Usage: /call-knowledge list | show <topic> | stale | prepare <topic> <authorized-source>..."
     except (SharedKnowledgeError, OSError, ValueError) as exc:
         return json.dumps({"status": "error", "error": str(exc)})
 
@@ -152,7 +152,7 @@ def _register_voice_knowledge(ctx: Any) -> None:
     ctx.register_tool(name="publish_shared_knowledge", toolset="voice_knowledge", schema=_publish_schema(), handler=with_context(_publish), emoji="📚")
     ctx.register_tool(name="prepare_for_voice", toolset="voice_knowledge", schema=_prepare_schema(), handler=with_context(_prepare), emoji="📞")
     ctx.register_tool(name="retrieve_shared_knowledge", toolset="voice_knowledge", schema=_retrieve_schema(), handler=with_context(_retrieve), emoji="🔎")
-    ctx.register_command("voice-knowledge", lambda raw: _cli(ctx, raw), description="Inspect Shared Knowledge and prepared Voice briefings.", args_hint="list | show <topic> | stale | prepare <topic> <source>...")
+    ctx.register_command("call-knowledge", lambda raw: _cli(ctx, raw), description="Inspect Shared Knowledge and prepared Voice briefings.", args_hint="list | show <topic> | stale | prepare <topic> <source>...")
     if hasattr(ctx, "register_cli_command"):
         def setup(parser: Any) -> None:
             parser.add_argument("operation", choices=("list", "show", "stale", "prepare", "refresh"))
@@ -164,19 +164,19 @@ def _register_voice_knowledge(ctx: Any) -> None:
                 raw += " " + shlex.quote(args.topic)
             raw += " " + " ".join(shlex.quote(item) for item in args.sources)
             print(_cli(ctx, raw))
-        ctx.register_cli_command(name="voice-knowledge", help="Manage Shared Knowledge and prepared Voice briefings.", setup_fn=setup, handler_fn=handler, description="Inspect and prepare user-authorized voice knowledge.")
+        ctx.register_cli_command(name="call-knowledge", help="Manage Shared Knowledge and prepared Voice briefings.", setup_fn=setup, handler_fn=handler, description="Inspect and prepare user-authorized voice knowledge.")
 
 def register(ctx) -> None:
-    ctx.register_tool(name="voice_chat_status", toolset="voice_chat", schema={
-        "description": "Read safe voice chat boundary status; never starts audio, calls, or models.",
+    ctx.register_tool(name="call_assistant_status", toolset="call_assistant", schema={
+        "description": "Read safe call assistant boundary status; never starts audio, calls, or models.",
         "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
     }, handler=_status, check_fn=lambda: True, emoji="🎙️", capabilities=("voice.status",))
-    ctx.register_command("voice-chat", handler=_command,
-                         description="Show safe voice chat boundary status.", args_hint="status")
+    ctx.register_command("call-assistant", handler=_command,
+                         description="Show safe call assistant boundary status.", args_hint="status")
     ctx.register_cli_command(
-        name="voice-chat",
-        help="Start the separate call-oriented voice chat runtime",
-        description="Explicitly launch the voice chat runtime for a telephone/call session; does not replace Hermes /voice.",
+        name="call-assistant",
+        help="Start the separate call-oriented assistant runtime",
+        description="Explicitly launch the call assistant runtime for a telephone/call session; does not replace Hermes /voice.",
         setup_fn=_setup_cli,
         handler_fn=_run_cli,
     )

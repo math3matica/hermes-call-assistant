@@ -1,11 +1,11 @@
-name: hermes-voice-chat
+name: hermes-call-assistant
 version: 0.1.0
-description: "Separate call-oriented voice chat runtime and explicit Hermes CLI adapter; does not replace Hermes /voice."
+description: "Separate call-oriented assistant runtime and explicit Hermes CLI adapter; does not replace Hermes /voice."
 author: Hermes community project
 kind: standalone
 commands:
-  - voice-chat
-  - voice-knowledge
+  - call-assistant
+  - call-knowledge
 cli_commands:
-  - voice-chat
-  - voice-knowledge
+  - call-assistant
+  - call-knowledge

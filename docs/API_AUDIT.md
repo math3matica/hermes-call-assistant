@@ -12,7 +12,7 @@ the complete schema body (`description` plus `parameters`), not only the inner
 parameter object.
 
 The `plugin/` adapter registers a safe status tool, a status slash command, and
-an explicit `voice-chat` native CLI command. The actual specialized runtime is
+an explicit `call-assistant` native CLI command. The actual specialized runtime is
 packaged as `rex_voice_v1` and contains the Pi extension, Unix JSONL capability
 bridge, session store, and post-call handoff. Registering a tool or hook still
 cannot replace Hermes's built-in `/voice` owner through the public API, and the
@@ -20,10 +20,10 @@ adapter does not attempt to do so.
 
 ## Implementation decision
 
-`hermes-voice-chat` is a clean standalone source tree. Its service owns a
+`hermes-call-assistant` is a clean standalone source tree. Its service owns a
 private `0600` Unix socket and a bounded state machine. The Hermes adapter
-registers `voice_chat_status`, `/voice-chat`, and explicit
-`hermes voice-chat` activation. The activation launches only the separate Voice Chat
+registers `call_assistant_status`, `/call-assistant`, and explicit
+`hermes call-assistant` activation. The activation launches only the separate Call Assistant
 runtime; it does not override `/voice` or silently perform telephony/audio
 actions. Unknown control-plane operations fail with stable
 `operation_not_allowed` errors.
@@ -41,7 +41,7 @@ silently convert one system into the other.
 
 The claim is deliberately split:
 
-* **Actual voice chat functionality in this package:** the session runtime owns the
+* **Actual call assistant functionality in this package:** the session runtime owns the
   separate Pi RPC conversational loop, prompt/turn handling, capability bridge,
   session artifacts, bounded cancellation, and post-call queue/recovery
   handoff. `rex_voice_v1/index.ts` owns the specialized Pi extension and
@@ -63,9 +63,9 @@ public registration/activation adapter around that runtime.
 ## No-impact invariant
 
 Registration is intentionally side-effect-free. The adapter exposes exactly
-`voice_chat_status`, `/voice-chat`, and `voice-chat`; it never exposes
+`call_assistant_status`, `/call-assistant`, and `call-assistant`; it never exposes
 `/voice` and never starts a process at registration. If the plugin is absent,
-Hermes loads no voice chat registrations. If it is installed but inactive, no
+Hermes loads no call assistant registrations. If it is installed but inactive, no
 registration or runtime code runs. The regression suite asserts this inert
 registration contract, and the clean-install simulation below repeats it from
 an installed package with `PYTHONPATH` unset.
@@ -77,7 +77,7 @@ a clean-tree copy rather than a literal `git clone`. Copy tracked source
 content to a fresh directory, install it into a fresh `uv` environment, copy
 `plugin/` as a project plugin, and run the registration probe from a neutral
 working directory with `PYTHONPATH` unset. The probe must resolve
-`rex_voice_mode` from the installed environment, record only the three Voice Chat
+`rex_voice_mode` from the installed environment, record only the three Call Assistant
 surfaces above, and show zero subprocess calls. This exercises packaging and
 inactive-plugin safety; it intentionally does not start Pi, model services,
 Phone Bridge, STT/TTS, or audio.
