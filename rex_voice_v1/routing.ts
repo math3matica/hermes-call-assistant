@@ -25,10 +25,14 @@ export function liveRequestText(text: string): string {
 
 export function requestedAction(text: string): ActionTool | undefined {
   text = liveRequestText(text);
-  if (explicitHangupRequest(text)) return "phone_hangup";
+  // Assignment requests commonly describe when the work should happen, e.g.
+  // "complete it whenever I hang up".  That phrase is not a request to end
+  // the current call, so assignment intent must win over the broad terminal
+  // hang-up matcher.
   if (/\bassignment\b/i.test(text) || /\bassign(?:ed|s|ment)?\b/i.test(text)) {
     return "assignment_capture";
   }
+  if (explicitHangupRequest(text)) return "phone_hangup";
   if (/\b(?:remember|recall|memory|memories|notes?|what did we decide)\b/i.test(text)) {
     return "retrieval";
   }
