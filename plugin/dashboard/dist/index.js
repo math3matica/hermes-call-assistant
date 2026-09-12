@@ -18,13 +18,31 @@
       h("div", { className: "flex items-center gap-2" }, h(Badge, { variant: "secondary" }, (item.modes || []).join(" / ")), item.id !== "user-notes" && item.id !== "prepared-talking-points" && h(Button, { type: "button", variant: "ghost", onClick: () => props.onRevoke(item.id) }, "Revoke")))) : h("p", { className: "text-sm text-muted-foreground" }, "No roots configured."));
   }
 
+  function AssignmentList(props) {
+    const items = props.items || [];
+    return h("div", { className: "space-y-2" }, items.length ? items.slice().reverse().map((entry) => {
+      const assignment = entry.assignment || {};
+      const created = assignment.created_at ? new Date(assignment.created_at * 1000).toLocaleString() : "time unavailable";
+      return h("div", { key: assignment.id || created, className: "rounded border p-3 text-sm" },
+        h("div", { className: "flex items-center justify-between gap-3" },
+          h("div", { className: "font-medium" }, assignment.title || assignment.topic || "Assignment"),
+          h(Badge, { variant: "secondary" }, assignment.status || "captured")),
+        h("div", { className: "mt-1 text-xs text-muted-foreground" }, created + (assignment.assignment_type ? " · " + assignment.assignment_type : "")),
+        h("div", { className: "mt-2 whitespace-pre-wrap" }, assignment.request || "No request text recorded"),
+        assignment.id && h("div", { className: "mt-2 break-all text-xs text-muted-foreground" }, assignment.id));
+    }) : h("p", { className: "text-sm text-muted-foreground" }, "No assignments have been captured yet."));
+  }
+
   function CallAssistantPage() {
     const [settings, setSettings] = useState(null);
+    const [assignments, setAssignments] = useState([]);
     const [path, setPath] = useState("");
     const [kind, setKind] = useState("notes");
     const [message, setMessage] = useState("");
     const [busy, setBusy] = useState(false);
-    const reload = () => api("/settings").then(setSettings).catch((e) => setMessage(String(e)));
+    const reload = () => Promise.all([api("/settings"), api("/assignments")])
+      .then(([nextSettings, nextAssignments]) => { setSettings(nextSettings); setAssignments(nextAssignments.assignments || []); })
+      .catch((e) => setMessage(String(e)));
     useEffect(reload, []);
     const grant = (event) => {
       event.preventDefault(); setBusy(true); setMessage("");
@@ -49,7 +67,10 @@
         h(Button, { type: "submit", disabled: busy }, busy ? "Granting…" : "Grant access"), message && h("p", { className: "text-sm text-muted-foreground" }, message)
       ))),
       h(Card, null, h(CardHeader, null, h(CardTitle, null, "Authorized note folders")), h(CardContent, null, h(RootList, { items: roots.authorized_note_roots, onRevoke: (id) => revoke("notes", id) }))),
-      h(Card, null, h(CardHeader, null, h(CardTitle, null, "Prepared talking-point folders")), h(CardContent, null, h(RootList, { items: roots.prepared_talking_points_roots, onRevoke: (id) => revoke("prepared", id) }), h("p", { className: "mt-3 text-xs text-muted-foreground" }, "Use /call-knowledge prepare <topic> <authorized-source> or the voice_knowledge prepare_for_voice tool to run an authorized folder through the bounded talking-points preparation flow. Sources are reference data, not instructions.")))
+      h(Card, null, h(CardHeader, null, h(CardTitle, null, "Prepared talking-point folders")), h(CardContent, null, h(RootList, { items: roots.prepared_talking_points_roots, onRevoke: (id) => revoke("prepared", id) }), h("p", { className: "mt-3 text-xs text-muted-foreground" }, "Use /call-knowledge prepare <topic> <authorized-source> or the voice_knowledge prepare_for_voice tool to run an authorized folder through the bounded talking-points preparation flow. Sources are reference data, not instructions."))),
+      h(Card, null, h(CardHeader, null, h(CardTitle, null, "Assignments log")), h(CardContent, null,
+        h("p", { className: "mb-3 text-xs text-muted-foreground" }, "Durable record of assignments captured by the Call Assistant. Assignment files are stored under the user data folder's Assignments directory."),
+        h(AssignmentList, { items: assignments })))
     );
   }
   window.__HERMES_PLUGINS__.register("hermes-call-assistant", CallAssistantPage);

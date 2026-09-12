@@ -7,12 +7,15 @@ all persistence and validation.
 """
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from rex_voice_v1.settings import grant_root, inspect_settings, revoke_root
+from rex_voice_v1.store import VoiceSessionStore
 
 router = APIRouter()
 
@@ -31,6 +34,16 @@ def _error(exc: Exception) -> HTTPException:
 def settings() -> dict[str, Any]:
     try:
         return {"status": "ok", **inspect_settings()}
+    except (OSError, ValueError) as exc:
+        raise _error(exc) from exc
+
+
+@router.get("/assignments")
+def assignments() -> dict[str, Any]:
+    try:
+        artifact_root = Path(os.environ.get("HERMES_CALL_ASSISTANT_ARTIFACTS", str(Path.home() / ".hermes/cache/hermes-call-assistant")))
+        store = VoiceSessionStore(artifact_root, data_root=Path(inspect_settings()["data_root"]))
+        return {"status": "ok", "assignments": store.assignment_log(), "log_path": str(store.assignment_log_path)}
     except (OSError, ValueError) as exc:
         raise _error(exc) from exc
 

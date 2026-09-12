@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import re
 import time
 import uuid
@@ -25,6 +26,7 @@ class VoiceSessionStore:
         self.sessions = self.root / "sessions"
         self.data_root = Path(data_root or user_data_root()).expanduser()
         self.assignments = self.data_root / "Assignments"
+        self.assignment_log_path = self.assignments / "assignment-log.jsonl"
         self.drafts = self.root / "drafts"
         self.quick_notes_path = self.root / "quick-notes.json"
         self.prepared_topics = self.data_root / "Prepared Talking Points" / "topics"
@@ -291,6 +293,7 @@ class VoiceSessionStore:
             "notification": {"status": "pending"} if fields.get("notify_on_completion", False) else None,
         }
         self._write(self.assignments / f"{assignment['id']}.json", assignment)
+        self._append_assignment_log(assignment)
         record["assignments"].append(assignment)
         self._write(self._session_path(session_id), record)
         if self.session_db is not None:
@@ -299,6 +302,48 @@ class VoiceSessionStore:
                 {"_rex_voice_assignments": record["assignments"]},
             )
         return assignment
+
+    def assignment_log(self) -> list[dict[str, Any]]:
+        """Return the append-only assignment history, backfilling older records once."""
+        entries: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        if self.assignment_log_path.exists():
+            for line in self.assignment_log_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError("assignment log contains invalid JSON") from exc
+                if not isinstance(entry, dict) or entry.get("event") != "assignment_captured" or not isinstance(entry.get("assignment"), dict):
+                    raise ValueError("assignment log contains an unsupported entry")
+                assignment_id = entry["assignment"].get("id")
+                if not isinstance(assignment_id, str) or assignment_id in seen:
+                    continue
+                seen.add(assignment_id)
+                entries.append(entry)
+        missing: list[dict[str, Any]] = []
+        for path in sorted(self.assignments.glob("assignment-*.json")):
+            try:
+                assignment = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ValueError(f"assignment record is unreadable: {path}") from exc
+            assignment_id = assignment.get("id") if isinstance(assignment, dict) else None
+            if not isinstance(assignment_id, str) or assignment_id in seen:
+                continue
+            entry = {"event": "assignment_captured", "assignment": assignment}
+            missing.append(entry)
+            seen.add(assignment_id)
+        for entry in missing:
+            self._append_assignment_log(entry["assignment"])
+        return entries + missing
+
+    def _append_assignment_log(self, assignment: dict[str, Any]) -> None:
+        entry = {"event": "assignment_captured", "assignment": assignment}
+        with self.assignment_log_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
 
     def create_draft(self, session_id: str, content: str, source_handles: list[str] | None = None) -> dict[str, Any]:
         self.load_session(session_id)
