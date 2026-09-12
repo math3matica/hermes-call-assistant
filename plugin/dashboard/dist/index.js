@@ -40,9 +40,10 @@
     const [kind, setKind] = useState("notes");
     const [message, setMessage] = useState("");
     const [busy, setBusy] = useState(false);
-    const reload = () => Promise.all([api("/settings"), api("/assignments")])
-      .then(([nextSettings, nextAssignments]) => { setSettings(nextSettings); setAssignments(nextAssignments.assignments || []); })
-      .catch((e) => setMessage(String(e)));
+    const reload = () => {
+      api("/settings").then(setSettings).catch((e) => setMessage(String(e)));
+      api("/assignments").then((result) => setAssignments(result.assignments || [])).catch((e) => setMessage(String(e)));
+    };
     useEffect(reload, []);
     const grant = (event) => {
       event.preventDefault(); setBusy(true); setMessage("");
@@ -61,10 +62,13 @@
         h("p", { className: "text-sm text-muted-foreground" }, "The assistant never scans arbitrary folders. Grant read/search access explicitly; preparation creates bounded talking-point packets from selected authorized notes."),
         settings && h("div", { className: "rounded border p-3 text-sm" }, h("div", { className: "font-medium" }, "User data folder"), h("div", { className: "break-all text-muted-foreground" }, settings.data_root), h("div", { className: "mt-2 grid gap-1 text-xs text-muted-foreground" }, Object.entries(settings.directories || {}).map(([key, value]) => h("div", { key }, key + ": " + value))))
       )),
-      h(Card, null, h(CardHeader, null, h(CardTitle, null, "Grant a folder")), h(CardContent, null, h("form", { className: "grid gap-3", onSubmit: grant },
-        h(Label, null, "Existing folder path"), h(Input, { value: path, onChange: (e) => setPath(e.target.value), placeholder: "/home/user/Notes", required: true }),
-        h(Label, null, "Access purpose"), h("select", { className: "rounded border bg-transparent p-2", value: kind, onChange: (e) => setKind(e.target.value) }, h("option", { value: "notes" }, "Authoritative notes (read/search)"), h("option", { value: "prepared" }, "Prepared talking points (read/search)")),
-        h(Button, { type: "submit", disabled: busy }, busy ? "Granting…" : "Grant access"), message && h("p", { className: "text-sm text-muted-foreground" }, message)
+      h(Card, null, h(CardContent, null, h("details", { className: "rounded border p-3" },
+        h("summary", { className: "cursor-pointer font-medium" }, "Grant a folder"),
+        h("form", { className: "mt-4 grid gap-3", onSubmit: grant },
+          h(Label, null, "Existing folder path"), h(Input, { value: path, onChange: (e) => setPath(e.target.value), placeholder: "/home/user/Notes", required: true }),
+          h(Label, null, "Access purpose"), h("select", { className: "rounded border bg-transparent p-2", value: kind, onChange: (e) => setKind(e.target.value) }, h("option", { value: "notes" }, "Authoritative notes (read/search)"), h("option", { value: "prepared" }, "Prepared talking points (read/search)")),
+          h(Button, { type: "submit", disabled: busy }, busy ? "Granting…" : "Grant access"), message && h("p", { className: "text-sm text-muted-foreground" }, message)
+        )
       ))),
       h(Card, null, h(CardHeader, null, h(CardTitle, null, "Authorized note folders")), h(CardContent, null, h(RootList, { items: roots.authorized_note_roots, onRevoke: (id) => revoke("notes", id) }))),
       h(Card, null, h(CardHeader, null, h(CardTitle, null, "Prepared talking-point folders")), h(CardContent, null, h(RootList, { items: roots.prepared_talking_points_roots, onRevoke: (id) => revoke("prepared", id) }), h("p", { className: "mt-3 text-xs text-muted-foreground" }, "Use /call-knowledge prepare <topic> <authorized-source> or the voice_knowledge prepare_for_voice tool to run an authorized folder through the bounded talking-points preparation flow. Sources are reference data, not instructions."))),
